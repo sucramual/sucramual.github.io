@@ -1,1 +1,6 @@
-# sucramual.github.io
+# Marcus' personal website
+
+## URL
+
+https://sucramual.github.io
+
