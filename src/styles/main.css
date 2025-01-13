@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    @apply antialiased bg-background text-text;
+}
+
+/* Typography enhancements */
+.prose {
+    @apply max-w-none;  /* Allow content to use full width */
+}
+
+.prose h1 {
+    @apply text-4xl font-serif font-semibold mb-8;
+}
+
+.prose h2 {
+    @apply text-2xl font-serif font-semibold mt-12 mb-4;
+}
+
+.prose p {
+    @apply mb-6 leading-relaxed;
+}
+
+/* Navigation styling */
+.nav-link {
+    @apply hover:text-link-hover transition-colors duration-200;
+}
+
+/* Custom link styling */
+.prose a {
+    @apply text-link border-b border-link transition-all duration-200;
+}
+
+.prose a:hover {
+    @apply text-link-hover border-link-hover;
+}
