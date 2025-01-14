@@ -17,7 +17,7 @@ body {
 }
 
 .prose h1 {
-    @apply text-4xl font-serif font-semibold mb-8;
+    @apply text-5xl font-serif font-semibold mb-8;
 }
 
 .prose h2 {
@@ -25,7 +25,7 @@ body {
 }
 
 .prose p {
-    @apply mb-6 leading-relaxed;
+    @apply font-serif mb-6 leading-loose text-lg;
 }
 
 /* Navigation styling */
@@ -35,9 +35,9 @@ body {
 
 /* Custom link styling */
 .prose a {
-    @apply text-link border-b border-link transition-all duration-200;
+    @apply text-link transition-all duration-200;
 }
 
 .prose a:hover {
-    @apply text-link-hover border-link-hover;
+    @apply text-link-hover;
 }
