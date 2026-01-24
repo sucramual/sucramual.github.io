@@ -7,7 +7,7 @@ layout: layouts/base.njk
 
 Here's a collection of projects I've worked on: 
 
-- [**GTClasses.wtf**](https://gtclasses-wtf.fly.dev) | Dec 2025 — Adapted from [classes.wtf](https://github.com/ekzhang/classes.wtf); built a lightning-fast Georgia Tech course discovery site with type-to-search + fuzzy matching using a low-latency Go + Redis backend and Svelte frontend; automated course data ingestion via crawler pipeline and deployed on Fly.io.
+- [**GTClasses.wtf**](https://gtclasses-wtf.fly.dev) | Jan 2026 — Adapted from [classes.wtf](https://github.com/ekzhang/classes.wtf); built a lightning-fast Georgia Tech course discovery site with type-to-search + fuzzy matching using a low-latency Go + Redis backend and Svelte frontend; automated course data ingestion via crawler pipeline and deployed on Fly.io.
 
 - [**Agentic Context Engineering vs. Parameter finetuning**](https://github.com/sucramual/GR-ACE) | Dec 2025 | [Report](https://drive.google.com/file/d/1VwYcegvtap0NVDjC8PCViQB2TaGnjS9X/view?usp=share_link) — proposed a retrieval-driven “learning-at-inference” framework that embeds the GSM8K training set into a semantic graph and, on failures, retrieves the nearest solved example to generate and accumulate reusable heuristics in a persistent playbook. Implemented the agent loop on Qwen2.5-1.5B-Instruct and benchmarked against 0-/3-shot prompting and parameter-efficient training baselines (QLoRA + GRPO).
 
