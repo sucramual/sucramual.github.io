@@ -1,4 +1,5 @@
 ---
+layout: layouts/base.njk
 title: Comparing ChatGPT, vLLM, and SGLang
 date: 2026-02-17
 description: An investigation into the Economics of Inference, comparing vLLM and SGLang for high-throughput information extraction.
