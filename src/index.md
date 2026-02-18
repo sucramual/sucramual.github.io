@@ -6,7 +6,7 @@ description: my background and what i'm doing
 
 # About Me
 
-I'm originally from Hong Kong and currently reside in Atlanta. I'm pursuing a Master in Analytics at Georgia Tech with a concentration in computational data analysis. 
+I'm originally from Hong Kong and currently reside in Atlanta. I recently graduated from Georgia Tech with a Master in Computer Science with a concentration in Machine Learning.
 
 Previously, I worked on strategy and analytics at a Hong Kong–based e-commerce marketplace and spent time in investment banking at Deutsche Bank and Credit Suisse (...now UBS).
 
