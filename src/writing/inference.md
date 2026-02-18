@@ -69,14 +69,95 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
 
 ![Benchmark Results](/writing/benchmark_results.png)
 
-| Setup | Avg Inference (s) | Setup Time (s) | Avg Cost ($) | Adequateness (1–10) | Accuracy (1–10) | Combined Score |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **GPT-5-mini** | 5.228 | 0.0 | 0.001 | 7.8 | 8.55 | 8.175 |
-| **Qwen3-VL-vLLM**\* | 0.34 | 417.094 | 0.0 | 7.25 | 8.55 | 7.9 |
-| **Qwen3-VL-SGLang**\* | 0.173 | 36.998 | 0.0 | 7.1 | 8.4 | 7.75 |
-| **Google Vision** | 16.545 | 0.0 | 0.003 | 7.1 | 7.85 | 7.475 |
+<div class="not-prose my-8" id="leaderboard">
+<style>
+  #leaderboard { font-family: 'Inter', sans-serif; }
+  #leaderboard table { width: 100%; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  #leaderboard thead tr { background: #ede9e0; }
+  #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6355; cursor: pointer; user-select: none; white-space: nowrap; }
+  #leaderboard th:hover { color: #3d3830; }
+  #leaderboard th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 0.7rem; }
+  #leaderboard th.active .sort-icon { opacity: 1; }
+  #leaderboard td { padding: 10px 14px; font-size: 0.88rem; color: #3d3830; border-top: 1px solid #e8e4da; vertical-align: middle; }
+  #leaderboard tr:hover td { background: #f0ece3; }
+  #leaderboard .bar-cell { min-width: 120px; }
+  #leaderboard .bar-wrap { display: flex; align-items: center; gap: 8px; }
+  #leaderboard .bar { height: 8px; border-radius: 4px; flex-shrink: 0; }
+  #leaderboard .bar-val { font-size: 0.82rem; color: #6b6355; white-space: nowrap; }
+  #leaderboard .rank { font-weight: 700; color: #9c8a78; font-size: 0.85rem; }
+  #leaderboard .model-name { font-weight: 600; }
+  #leaderboard .footnote { font-size: 0.78rem; color: #9c8a78; margin-top: 8px; }
+  #leaderboard .sort-hint { font-size: 0.75rem; color: #b0a898; margin-bottom: 6px; }
+</style>
+<p class="sort-hint">↕ Click any column header to sort</p>
+<table id="lb-table">
+  <thead>
+    <tr>
+      <th data-col="rank">#</th>
+      <th data-col="name">Setup</th>
+      <th data-col="inference" class="active">Inference (s) ↑<span class="sort-icon">▲</span></th>
+      <th data-col="setup">Setup (s)<span class="sort-icon">↕</span></th>
+      <th data-col="cost">Cost ($)<span class="sort-icon">↕</span></th>
+      <th data-col="adequacy">Adequateness<span class="sort-icon">↕</span></th>
+      <th data-col="accuracy">Accuracy<span class="sort-icon">↕</span></th>
+      <th data-col="score">Combined Score<span class="sort-icon">↕</span></th>
+    </tr>
+  </thead>
+  <tbody id="lb-body"></tbody>
+</table>
+<p class="footnote">* Ran on H100 × 1 with 80GB VRAM</p>
+</div>
 
-*\*Ran on H100 × 1 with 80GB VRAM*
+<script>
+(function() {
+  const data = [
+    { name: "GPT-5-mini",         inference: 5.228,  setup: 0.0,     cost: 0.001, adequacy: 7.8,  accuracy: 8.55, score: 8.175, note: false },
+    { name: "Qwen3-VL (vLLM)*",   inference: 0.34,   setup: 417.094, cost: 0.0,   adequacy: 7.25, accuracy: 8.55, score: 7.9,   note: true  },
+    { name: "Qwen3-VL (SGLang)*", inference: 0.173,  setup: 36.998,  cost: 0.0,   adequacy: 7.1,  accuracy: 8.4,  score: 7.75,  note: true  },
+    { name: "Google Vision",       inference: 16.545, setup: 0.0,     cost: 0.003, adequacy: 7.1,  accuracy: 7.85, score: 7.475, note: false },
+  ];
+
+  const colors = { inference: "#c0392b", setup: "#8c6b5d", cost: "#7a9e7e", adequacy: "#5c7fa3", accuracy: "#7b6fa3", score: "#a3875c" };
+  const maxes  = { inference: 16.545, setup: 417.094, cost: 0.003, adequacy: 10, accuracy: 10, score: 10 };
+
+  let sortCol = "inference", sortAsc = true;
+
+  function bar(val, col) {
+    const pct = Math.max(4, (val / maxes[col]) * 100);
+    return `<div class="bar-wrap"><div class="bar" style="width:${pct}px;background:${colors[col]}"></div><span class="bar-val">${val}</span></div>`;
+  }
+
+  function render() {
+    const sorted = [...data].sort((a, b) => sortAsc ? a[sortCol] - b[sortCol] : b[sortCol] - a[sortCol]);
+    const tbody = document.getElementById("lb-body");
+    tbody.innerHTML = sorted.map((r, i) => `
+      <tr>
+        <td class="rank">${i + 1}</td>
+        <td class="model-name">${r.name}</td>
+        <td class="bar-cell">${bar(r.inference, "inference")}</td>
+        <td class="bar-cell">${bar(r.setup, "setup")}</td>
+        <td class="bar-cell">${bar(r.cost, "cost")}</td>
+        <td class="bar-cell">${bar(r.adequacy, "adequacy")}</td>
+        <td class="bar-cell">${bar(r.accuracy, "accuracy")}</td>
+        <td class="bar-cell">${bar(r.score, "score")}</td>
+      </tr>`).join("");
+  }
+
+  document.querySelectorAll("#lb-table th[data-col]").forEach(th => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.col;
+      if (col === "rank" || col === "name") return;
+      if (sortCol === col) { sortAsc = !sortAsc; }
+      else { sortCol = col; sortAsc = true; }
+      document.querySelectorAll("#lb-table th").forEach(t => t.classList.remove("active"));
+      th.classList.add("active");
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
 
 GPT-5-mini performed the best in terms of data extraction, though the difference was insignificant. I believe this is largely due to the highly standardised nature of the dataset. The natural next step would be to test with a less structured dataset—ideally one where the schema varies across data points, requiring the model to dynamically output the data model itself.
 
