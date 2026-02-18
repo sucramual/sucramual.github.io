@@ -13,7 +13,8 @@ body {
 
 /* Typography enhancements */
 .prose {
-    @apply max-w-none;  /* Allow content to use full width */
+    @apply max-w-none;
+    /* Allow content to use full width */
 }
 
 .prose h1 {
@@ -22,6 +23,10 @@ body {
 
 .prose h2 {
     @apply text-2xl font-serif font-semibold mt-12 mb-4;
+}
+
+.prose h3 {
+    @apply text-xl font-serif font-semibold mt-8 mb-3;
 }
 
 .prose p {
