@@ -71,10 +71,10 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
 
 | Setup | Avg Inference (s) | Setup Time (s) | Avg Cost ($) | Adequateness (1–10) | Accuracy (1–10) | Combined Score |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| GPT-5-mini | 5.228 | 0.0 | 0.001 | 7.8 | 8.55 | 8.175 |
-| Qwen3-VL-vLLM* | 0.34 | 417.094 | 0.0 | 7.25 | 8.55 | 7.9 |
-| Qwen3-VL-SGLang* | 0.173 | 36.998 | 0.0 | 7.1 | 8.4 | 7.75 |
-| Google Vision | 16.545 | 0.0 | 0.003 | 7.1 | 7.85 | 7.475 |
+| **GPT-5-mini** | 5.228 | 0.0 | 0.001 | 7.8 | 8.55 | 8.175 |
+| **Qwen3-VL-vLLM**\* | 0.34 | 417.094 | 0.0 | 7.25 | 8.55 | 7.9 |
+| **Qwen3-VL-SGLang**\* | 0.173 | 36.998 | 0.0 | 7.1 | 8.4 | 7.75 |
+| **Google Vision** | 16.545 | 0.0 | 0.003 | 7.1 | 7.85 | 7.475 |
 
 *\*Ran on H100 × 1 with 80GB VRAM*
 
