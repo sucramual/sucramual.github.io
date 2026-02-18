@@ -94,23 +94,23 @@ Return ONLY valid JSON, no other text.
 </table>
 <div class="not-prose my-8" id="leaderboard">
 <style>
-  #leaderboard { font-family: Spectral, 'Source Serif Pro', Baskerville, serif; }
-  #leaderboard table { width: 100%; max-width: 680px; margin: 0 auto; border-collapse: collapse; background: #FFFAF0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(30,58,138,0.08); }
-  #leaderboard thead tr { background: #eef0f8; }
-  #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1e3a8a; cursor: pointer; user-select: none; white-space: nowrap; }
-  #leaderboard th:hover { color: #2563eb; }
-  #leaderboard th .sort-icon { margin-left: 4px; opacity: 0.35; font-size: 0.65rem; }
+  #leaderboard { font-family: inherit; margin-left: -1rem; margin-right: -1rem; }
+  #leaderboard table { width: 100%; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  #leaderboard thead tr { background: #ede9e0; }
+  #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6355; cursor: pointer; user-select: none; white-space: nowrap; }
+  #leaderboard th:hover { color: #3d3830; }
+  #leaderboard th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 0.7rem; }
   #leaderboard th.active .sort-icon { opacity: 1; }
-  #leaderboard td { padding: 10px 14px; font-size: 0.88rem; color: #1e3a8a; border-top: 1px solid #dde2f0; vertical-align: middle; }
-  #leaderboard tr:hover td { background: #f0f3fb; }
+  #leaderboard td { padding: 10px 14px; font-size: 0.88rem; color: #3d3830; border-top: 1px solid #e8e4da; vertical-align: middle; }
+  #leaderboard tr:hover td { background: #f0ece3; }
   #leaderboard .bar-cell { min-width: 100px; }
   #leaderboard .bar-wrap { display: flex; align-items: center; gap: 8px; }
-  #leaderboard .bar { height: 7px; border-radius: 4px; flex-shrink: 0; }
-  #leaderboard .bar-val { font-size: 0.82rem; color: #3d5299; white-space: nowrap; }
-  #leaderboard .rank { font-weight: 700; color: #7b8fc4; font-size: 0.85rem; }
+  #leaderboard .bar { height: 8px; border-radius: 4px; flex-shrink: 0; }
+  #leaderboard .bar-val { font-size: 0.82rem; color: #6b6355; white-space: nowrap; }
+  #leaderboard .rank { font-weight: 700; color: #9c8a78; font-size: 0.85rem; }
   #leaderboard .model-name { font-weight: 600; }
-  #leaderboard .footnote { font-size: 0.78rem; color: #7b8fc4; margin-top: 8px; text-align: center; }
-  #leaderboard .sort-hint { font-size: 0.75rem; color: #7b8fc4; margin-bottom: 6px; text-align: center; }
+  #leaderboard .footnote { font-size: 0.78rem; color: #9c8a78; margin-top: 8px; }
+  #leaderboard .sort-hint { font-size: 0.75rem; color: #b0a898; margin-bottom: 6px; }
 </style>
 <p class="sort-hint">↕ Click any column header to sort</p>
 <table id="lb-table">
