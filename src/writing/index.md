@@ -14,7 +14,7 @@ title: Writing - Marcus Lau
           {{ post.data.title }}
         </a>
       </h2>
-      <time class="text-sm text-gray-500 font-sans whitespace-nowrap ml-4">{{ post.date | date("MMM YYYY") }}</time>
+      <time class="text-sm text-gray-500 font-sans whitespace-nowrap ml-4">{{ post.date | date: "MMM YYYY" }}</time>
     </div>
     {% if post.data.description %}
       <p class="text-gray-600 leading-relaxed m-0">{{ post.data.description }}</p>
