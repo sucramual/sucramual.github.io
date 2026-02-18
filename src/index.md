@@ -25,7 +25,7 @@ The best way to get in touch would be to email at ylau36[at]gatech.edu. I am als
           {{ post.data.title }}
         </a>
       </h3>
-      <time class="text-sm text-gray-500 font-sans whitespace-nowrap ml-4">{{ post.date | date("MMM YYYY") }}</time>
+      <time class="text-sm text-gray-500 font-sans whitespace-nowrap ml-4">{{ post.date | date: "MMM YYYY" }}</time>
     </div>
     {% if post.data.description %}
       <p class="text-gray-600 leading-relaxed m-0 text-base">{{ post.data.description }}</p>
