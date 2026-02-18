@@ -67,27 +67,25 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
 | **Optimization Tech** | PagedAttention & Continuous Batching | RadixAttention & Prefix Caching | N/A (Closed Source) |
 | **Ideal Use Case** | General High-Throughput Serving | Complex, Schema-Heavy Extraction | Low-Volume Prototyping |
 
-![Benchmark Results](/writing/benchmark_results.png)
-
 <div class="not-prose my-8" id="leaderboard">
 <style>
-  #leaderboard { font-family: 'Inter', sans-serif; }
-  #leaderboard table { width: 100%; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
-  #leaderboard thead tr { background: #ede9e0; }
-  #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6355; cursor: pointer; user-select: none; white-space: nowrap; }
-  #leaderboard th:hover { color: #3d3830; }
-  #leaderboard th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 0.7rem; }
+  #leaderboard { font-family: Spectral, 'Source Serif Pro', Baskerville, serif; }
+  #leaderboard table { width: 100%; max-width: 680px; margin: 0 auto; border-collapse: collapse; background: #FFFAF0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(30,58,138,0.08); }
+  #leaderboard thead tr { background: #eef0f8; }
+  #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #1e3a8a; cursor: pointer; user-select: none; white-space: nowrap; }
+  #leaderboard th:hover { color: #2563eb; }
+  #leaderboard th .sort-icon { margin-left: 4px; opacity: 0.35; font-size: 0.65rem; }
   #leaderboard th.active .sort-icon { opacity: 1; }
-  #leaderboard td { padding: 10px 14px; font-size: 0.88rem; color: #3d3830; border-top: 1px solid #e8e4da; vertical-align: middle; }
-  #leaderboard tr:hover td { background: #f0ece3; }
-  #leaderboard .bar-cell { min-width: 120px; }
+  #leaderboard td { padding: 10px 14px; font-size: 0.88rem; color: #1e3a8a; border-top: 1px solid #dde2f0; vertical-align: middle; }
+  #leaderboard tr:hover td { background: #f0f3fb; }
+  #leaderboard .bar-cell { min-width: 100px; }
   #leaderboard .bar-wrap { display: flex; align-items: center; gap: 8px; }
-  #leaderboard .bar { height: 8px; border-radius: 4px; flex-shrink: 0; }
-  #leaderboard .bar-val { font-size: 0.82rem; color: #6b6355; white-space: nowrap; }
-  #leaderboard .rank { font-weight: 700; color: #9c8a78; font-size: 0.85rem; }
+  #leaderboard .bar { height: 7px; border-radius: 4px; flex-shrink: 0; }
+  #leaderboard .bar-val { font-size: 0.82rem; color: #3d5299; white-space: nowrap; }
+  #leaderboard .rank { font-weight: 700; color: #7b8fc4; font-size: 0.85rem; }
   #leaderboard .model-name { font-weight: 600; }
-  #leaderboard .footnote { font-size: 0.78rem; color: #9c8a78; margin-top: 8px; }
-  #leaderboard .sort-hint { font-size: 0.75rem; color: #b0a898; margin-bottom: 6px; }
+  #leaderboard .footnote { font-size: 0.78rem; color: #7b8fc4; margin-top: 8px; text-align: center; }
+  #leaderboard .sort-hint { font-size: 0.75rem; color: #7b8fc4; margin-bottom: 6px; text-align: center; }
 </style>
 <p class="sort-hint">↕ Click any column header to sort</p>
 <table id="lb-table">
@@ -95,12 +93,11 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
     <tr>
       <th data-col="rank">#</th>
       <th data-col="name">Setup</th>
-      <th data-col="inference" class="active">Inference (s) ↑<span class="sort-icon">▲</span></th>
+      <th data-col="inference" class="active">Inference (s)<span class="sort-icon">▲</span></th>
       <th data-col="setup">Setup (s)<span class="sort-icon">↕</span></th>
-      <th data-col="cost">Cost ($)<span class="sort-icon">↕</span></th>
       <th data-col="adequacy">Adequateness<span class="sort-icon">↕</span></th>
       <th data-col="accuracy">Accuracy<span class="sort-icon">↕</span></th>
-      <th data-col="score">Combined Score<span class="sort-icon">↕</span></th>
+      <th data-col="score">Score<span class="sort-icon">↕</span></th>
     </tr>
   </thead>
   <tbody id="lb-body"></tbody>
@@ -111,14 +108,14 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
 <script>
 (function() {
   const data = [
-    { name: "GPT-5-mini",         inference: 5.228,  setup: 0.0,     cost: 0.001, adequacy: 7.8,  accuracy: 8.55, score: 8.175, note: false },
-    { name: "Qwen3-VL (vLLM)*",   inference: 0.34,   setup: 417.094, cost: 0.0,   adequacy: 7.25, accuracy: 8.55, score: 7.9,   note: true  },
-    { name: "Qwen3-VL (SGLang)*", inference: 0.173,  setup: 36.998,  cost: 0.0,   adequacy: 7.1,  accuracy: 8.4,  score: 7.75,  note: true  },
-    { name: "Google Vision",       inference: 16.545, setup: 0.0,     cost: 0.003, adequacy: 7.1,  accuracy: 7.85, score: 7.475, note: false },
+    { name: "GPT-5-mini",         inference: 5.228,  setup: 0.0,     adequacy: 7.8,  accuracy: 8.55, score: 8.175 },
+    { name: "Qwen3-VL (vLLM)*",   inference: 0.34,   setup: 417.094, adequacy: 7.25, accuracy: 8.55, score: 7.9   },
+    { name: "Qwen3-VL (SGLang)*", inference: 0.173,  setup: 36.998,  adequacy: 7.1,  accuracy: 8.4,  score: 7.75  },
+    { name: "Google Vision",       inference: 16.545, setup: 0.0,     adequacy: 7.1,  accuracy: 7.85, score: 7.475 },
   ];
 
-  const colors = { inference: "#c0392b", setup: "#8c6b5d", cost: "#7a9e7e", adequacy: "#5c7fa3", accuracy: "#7b6fa3", score: "#a3875c" };
-  const maxes  = { inference: 16.545, setup: 417.094, cost: 0.003, adequacy: 10, accuracy: 10, score: 10 };
+  const colors = { inference: "#2563eb", setup: "#7b8fc4", adequacy: "#3d5299", accuracy: "#1e3a8a", score: "#2563eb" };
+  const maxes  = { inference: 16.545, setup: 417.094, adequacy: 10, accuracy: 10, score: 10 };
 
   let sortCol = "inference", sortAsc = true;
 
@@ -136,7 +133,6 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
         <td class="model-name">${r.name}</td>
         <td class="bar-cell">${bar(r.inference, "inference")}</td>
         <td class="bar-cell">${bar(r.setup, "setup")}</td>
-        <td class="bar-cell">${bar(r.cost, "cost")}</td>
         <td class="bar-cell">${bar(r.adequacy, "adequacy")}</td>
         <td class="bar-cell">${bar(r.accuracy, "accuracy")}</td>
         <td class="bar-cell">${bar(r.score, "score")}</td>
