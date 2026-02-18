@@ -1,0 +1,107 @@
+<h1>Comparing ChatGPT, vLLM, and SGLang</h1>
+<p>Notebook <a href="https://colab.research.google.com/drive/1fwqXzZ9C2SL1SldK8abrxB1PE55TuPWj?usp=sharing">here</a>! Feel free to play around.</p>
+<h2>Motivation</h2>
+<p>A couple of months ago, I watched PewDiePie’s <a href="https://www.youtube.com/watch?v=qw4fDU18RcU&amp;t=923s">video</a> where he essentially built his own mini-datacentre and an &quot;AI council&quot; by running multiple local models concurrently.</p>
+<p>What really caught my attention was the blazing-fast throughput of these local models. Compared to the sometimes painstakingly slow response of ChatGPT, these local models spit out tokens as if you were watching a YouTube video at 3x speed.</p>
+<p>I'm also deeply interested in how models interpret the world, and one of the most common file types we encounter daily is the PDF. PDFs are often highly unstructured, containing tables, diagrams, and drawings, making them notoriously difficult for models to parse accurately. A major hurdle in integrating LLMs into enterprise workflows is the demand for flawless data. Imagine parsing Nvidia’s latest 10-K and the model mistakenly reads $10,000,000 as $10,000.000—a single punctuation error can corrupt downstream data ingestion. Catching such errors would require word-by-word human verification of the model's output, which is simply not feasible at scale.</p>
+<p>This led me to my core question: How do you achieve fast yet reliable information extraction?</p>
+<p>As LLMs transition from research to production, the focus is shifting toward the Economics of Inference. While proprietary APIs like GPT-4o offer ease of use, they often become bottlenecks due to high latency and unpredictable unit costs at scale. For enterprise workflows—such as extracting financial data from unstructured PDFs—the challenge is achieving high throughput without sacrificing the deterministic reliability required for downstream ingestion. This investigation compares vLLM and SGLang, two leading frameworks designed to optimize the KV-cache and maximize GPU utilization through specialized attention mechanisms.</p>
+<h2>What I Did</h2>
+<p>I chose <a href="https://github.com/zzzDavid/ICDAR-2019-SROIE/">SROIE</a>, a dataset of scanned receipt images used to benchmark OCR and information extraction. I initially planned for a more diverse dataset, but that would have required an extra model call to dynamically determine the schema, complicating the setup and making evaluation much harder.</p>
+<p>The setup was straightforward:</p>
+<ul>
+<li><strong>Baseline</strong>: GPT-5-mini (leveraging OpenAI's feature to constrain the model to output a specific schema, see <a href="https://developers.openai.com/api/docs/guides/structured-outputs">link</a>).</li>
+<li><strong>Local Models</strong>: Qwen3-VL-8B-Instruct-FP8 as the base model for both vLLM and SGLang.</li>
+<li><strong>Additional Comparison</strong>: I also included Google Vision API (for OCR) and then fed its output to GPT-5-mini (for structured extraction) to see how a vision model's output would perform against state-of-the-art OCR solutions.</li>
+</ul>
+<p>The extraction prompt looked like this:</p>
+<pre><code>Extract all visible information from this invoice/receipt image.
+
+&lt;instructions&gt;
+Extract EVERY field that is visible and legible
+For fields not present or unclear: set value to null (do not guess)
+Be precise about values (exact text, numbers, dates as shown)
+&lt;/instructions&gt;
+Return a JSON object with these fields:
+{
+&quot;vendor_name&quot;: &quot;Business/company name&quot;,
+&quot;vendor_address&quot;: &quot;Full address if visible&quot;,
+&quot;date&quot;: &quot;Transaction date&quot;,
+&quot;total&quot;: &quot;Total amount with currency&quot;,
+&quot;tax&quot;: &quot;Tax amount if shown&quot;,
+&quot;line_items&quot;: [&quot;item1&quot;, &quot;item2&quot;],
+&quot;payment_method&quot;: &quot;Payment type if indicated&quot;,
+&quot;invoice_number&quot;: &quot;Receipt/invoice ID if present&quot;
+}
+
+Return ONLY valid JSON, no other text.
+
+</code></pre>
+<p>To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness (whether the required field is present) and Accuracy (whether the information is captured correctly and properly formatted).</p>
+<h2>Results</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Metric</th>
+<th style="text-align:left">vLLM</th>
+<th style="text-align:left">SGLang</th>
+<th style="text-align:left">GPT-4o</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Primary Strength</strong></td>
+<td style="text-align:left">Stability &amp; Community Support</td>
+<td style="text-align:left">Structured Output Latency</td>
+<td style="text-align:left">Zero Infrastructure Overhead</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Optimization Tech</strong></td>
+<td style="text-align:left">PagedAttention &amp; Continuous Batching</td>
+<td style="text-align:left">RadixAttention &amp; Prefix Caching</td>
+<td style="text-align:left">N/A (Closed Source)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Ideal Use Case</strong></td>
+<td style="text-align:left">General High-Throughput Serving</td>
+<td style="text-align:left">Complex, Schema-Heavy Extraction</td>
+<td style="text-align:left">Low-Volume Prototyping</td>
+</tr>
+</tbody>
+</table>
+<p><img src="/writing/benchmark_results.png" alt="Benchmark Results"></p>
+<p><em>(Placeholder for table from CSV - pending generation)</em></p>
+<p>GPT-5-mini performed the best in terms of data extraction, though the difference was insignificant. I believe this is largely due to the highly standardised nature of the dataset. The natural next step would be to test with a less structured dataset—ideally one where the schema varies across data points, requiring the model to dynamically output the data model itself.</p>
+<h3>Speed</h3>
+<p>vLLM and SGLang are truly lightning fast! While GPT-5-mini averaged 5 seconds per image, vLLM took a mere 0.34 seconds, and SGLang was even faster at 0.17 seconds. The obvious trade-off is the setup time, as you need to download and launch the model.</p>
+<p>This is where SGLang really shines. I used the offline engine mode for both SGLang and vLLM (as opposed to spinning up an HTTP server). SGLang was ready in less than 37 seconds, compared to around 417 seconds (~7 minutes) for vLLM. It’s worth exploring: 1) What makes vLLM and SGLang so fast? and 2) Why is SGLang’s setup time such a small fraction of vLLM’s?</p>
+<h3>What Makes vLLM and SGLang So Powerful?</h3>
+<p>In LLM serving, the primary bottleneck during decoding is the memory capacity and bandwidth of the KV-cache. While storing keys and values (K/V) prevents redundant recomputation, traditional serving systems are notoriously inefficient in how they handle this memory. They typically allocate KV data as contiguous 'slabs' based on a request's maximum potential length. This leads to significant internal fragmentation and 'stranded' memory that cannot be utilized by concurrent requests—effectively capping throughput.</p>
+<p><a href="https://arxiv.org/pdf/2309.06180">vLLM</a> addresses this through a fundamental architectural shift. At its core is PagedAttention, which manages the KV-cache similarly to virtual memory in an operating system. By storing KV data in fixed-size, non-contiguous blocks allocated from a central pool, vLLM eliminates external fragmentation and bounds wasted space to the final, partially filled block of a sequence.</p>
+<p>This flexible memory management enables vLLM’s secondary throughput driver: Continuous Batching. Because memory is allocated dynamically rather than reserved in advance, the engine can inject new requests into the batch as soon as blocks become available, rather than waiting for an entire static batch to finish. By combining granular memory control with dynamic scheduling, the system eliminates 'bubbles' in GPU computation and maximizes aggregate throughput.</p>
+<p><img src="/writing/vLLM_fig3.png" alt="vLLM PagedAttention">
+<em>Figure 3: PagedAttention memory management (Source: vLLM Paper)</em></p>
+<h3>What Makes SGLang Even Faster?</h3>
+<p>I have to say, the 50% drop in latency between vLLM and SGLang is just as striking as the 90%+ drop between GPT-5-mini and vLLM. I was very curious why.</p>
+<p>The <a href="https://arxiv.org/pdf/2312.07104">SGLang paper</a> offers some key insights. On top of the continuous batching technique used by vLLM, SGLang implements what they call a compressed finite state machine (FSM). Modern inference often uses an FSM as a filter to force the model’s output into a specific format, such as JSON. SGLang takes this a step further by iterating through the FSM and searching for &quot;Singular transition edges&quot; and &quot;Compressed edges.&quot; A Singular transition edge is an edge in the FSM where there is only one single acceptable possible successor token. Consecutive singular edges are merged into a Compressed edge.</p>
+<p>A simple example to illustrate this is the regex <code>{\&quot;age\&quot;: \d+\}</code>. The characters &quot;{&quot;, &quot;\n&quot;, and the string up until &quot;:&quot; are all singular transition edges because the JSON schema is fixed. These consecutive singular edges are then compressed into one Compressed edge.</p>
+<p>During inference, when the system encounters a compressed edge, it immediately appends the corresponding string to the output buffer without running the model, drastically saving compute resources and speeding up inference. The model only runs once with the prefilled text to predict the next uncertain token.</p>
+<p><img src="/writing/SGLang_fig11.png" alt="SGLang Compressed FSM">
+<em>Figure 11: Compressed Finite State Machine (Source: SGLang Paper)</em></p>
+<p>In my specific use case, where I constrain the model output to a fixed JSON schema, I can fully leverage SGLang’s compressed FSM component. SGLang also uses RadixAttention and cache-aware scheduling. RadixAttention enables KV-cache prefix caching that treats KV-cache as a LRU-evictable tree structure and reuses computation across different requests (e.g., shared few-shot examples or system prompts). Cache-aware scheduling prioritises requests that share a high similarity with cached tokens. Both contribute to SGLang's improved performance over vLLM.</p>
+<p>SGLang also publishes its own comparison benchmark between SGLang and vLLM here.</p>
+<h3>Caveat</h3>
+<p>For the sake of illustration, I opted for a simpler setup in this notebook. However, in a production environment serving multiple users, you would need to spin up an HTTP server for both vLLM and SGLang, primarily adding to the initialisation (setup) cost.</p>
+<p>Both libraries employ other nuances and tricks to boost speed, especially time-to-first-token (TTFT). Be sure to check out their docs or, even better, their papers! I personally found AlphaXiv helpful for my understanding.</p>
+<h2>What I Learned</h2>
+<h3>Open-Source Solutions, While Powerful, Can Be Painful to Set Up</h3>
+<p>If the bottleneck of using a model API is speed, the bottleneck of building your own inference engine is stability and setup.</p>
+<p>I spent the bulk of my time just getting vLLM and SGLang set up. Searching for the model-specific &quot;recipe&quot; (in this case, Qwen-VL-3) proved challenging (suggestions welcome!). Furthermore, the error logging in both libraries was not very descriptive, significantly compounding the difficulty of debugging.</p>
+<p>If running this on a notebook is a pain to get operational, imagine deploying it in production and ensuring the model runs smoothly, and critically, being able to quickly diagnose what went wrong from the error logs when it fails.</p>
+<h3>For Extraction, a Single Model Pass is Better Than OCR + LLM</h3>
+<p>I was curious: Would an OCR + LLM pipeline yield better results than simply using a Vision-Language Model (VLM) alone? Prompted by this, I implemented a setup where I first passed the receipt images to Google Vision API (an OCR service) before ingesting the OCR output into GPT-5-mini for structured data extraction.</p>
+<p>For the data points where this workflow ran successfully, the result was only better by a rounding error. However, the LLM run was interrupted twice, causing the data extraction step to fail. While this could be prevented with retry loops, it highlights the potential instability when chaining multiple tools compared to having a VLM handle the entire process end-to-end.</p>
+<h2>Future Work</h2>
+<p>As discussed, the dataset I used consisted entirely of receipts, meaning they all shared the same fixed schema. It would be fascinating to study what happens if the model were also tasked with extracting the schema and then using that dynamically generated schema to perform the extraction. I expect this added layer of complication would degrade model performance. It would also necessitate a gold-standard dataset for accurate evaluation, ideally using F1-score and Exact Match metrics, rather than relying on an evaluator LLM to perform the same task and compare against the candidate's input.</p>
+<p>Another direction would be to fine-tune Qwen-3-VL and run ablations against the above task. Fine-tuning the model for this specific notebook's task offers limited benefits since all candidates performed relatively well. However, as the task becomes more complicated and abstract, introducing a fine-tuned model into the comparison will serve as a meaningful benchmark against the non-fine-tuned model.</p>
+<p>Beyond raw inference speed, the next phase involves containerization (Docker/K8s) and testing with model quantization (AWQ or FP8). Quantization is particularly vital for fitting larger VLMs into consumer or mid-tier enterprise GPUs while maintaining the memory bandwidth necessary for high-speed decoding.</p>
