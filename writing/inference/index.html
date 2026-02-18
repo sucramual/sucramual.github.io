@@ -93,7 +93,58 @@ Return ONLY valid JSON, no other text.
 </tbody>
 </table>
 <p><img src="/writing/benchmark_results.png" alt="Benchmark Results"></p>
-<p><em>(Placeholder for table from CSV - pending generation)</em></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Setup</th>
+<th style="text-align:right">Avg Inference (s)</th>
+<th style="text-align:right">Setup Time (s)</th>
+<th style="text-align:right">Avg Cost ($)</th>
+<th style="text-align:right">Adequateness (1–10)</th>
+<th style="text-align:right">Accuracy (1–10)</th>
+<th style="text-align:right">Combined Score</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">GPT-5-mini</td>
+<td style="text-align:right">5.228</td>
+<td style="text-align:right">0.0</td>
+<td style="text-align:right">0.001</td>
+<td style="text-align:right">7.8</td>
+<td style="text-align:right">8.55</td>
+<td style="text-align:right">8.175</td>
+</tr>
+<tr>
+<td style="text-align:left">Qwen3-VL-vLLM*</td>
+<td style="text-align:right">0.34</td>
+<td style="text-align:right">417.094</td>
+<td style="text-align:right">0.0</td>
+<td style="text-align:right">7.25</td>
+<td style="text-align:right">8.55</td>
+<td style="text-align:right">7.9</td>
+</tr>
+<tr>
+<td style="text-align:left">Qwen3-VL-SGLang*</td>
+<td style="text-align:right">0.173</td>
+<td style="text-align:right">36.998</td>
+<td style="text-align:right">0.0</td>
+<td style="text-align:right">7.1</td>
+<td style="text-align:right">8.4</td>
+<td style="text-align:right">7.75</td>
+</tr>
+<tr>
+<td style="text-align:left">Google Vision</td>
+<td style="text-align:right">16.545</td>
+<td style="text-align:right">0.0</td>
+<td style="text-align:right">0.003</td>
+<td style="text-align:right">7.1</td>
+<td style="text-align:right">7.85</td>
+<td style="text-align:right">7.475</td>
+</tr>
+</tbody>
+</table>
+<p><em>*Ran on H100 × 1 with 80GB VRAM</em></p>
 <p>GPT-5-mini performed the best in terms of data extraction, though the difference was insignificant. I believe this is largely due to the highly standardised nature of the dataset. The natural next step would be to test with a less structured dataset—ideally one where the schema varies across data points, requiring the model to dynamically output the data model itself.</p>
 <h3>Speed</h3>
 <p>vLLM and SGLang are truly lightning fast! While GPT-5-mini averaged 5 seconds per image, vLLM took a mere 0.34 seconds, and SGLang was even faster at 0.17 seconds. The obvious trade-off is the setup time, as you need to download and launch the model.</p>
