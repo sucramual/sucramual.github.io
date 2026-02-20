@@ -40,9 +40,18 @@ body {
 
 /* Custom link styling */
 .prose a {
-    @apply text-link transition-all duration-200;
+    @apply text-link transition-all duration-200 underline decoration-ui-normal;
+    text-underline-offset: 2px;
 }
 
 .prose a:hover {
-    @apply text-link-hover;
+    @apply text-link-hover decoration-link-hover;
+}
+
+.prose a[href^="http"] {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2.5' stroke='gray' class='w-6 h-6'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25' /%3E%3C/svg%3E%0A");
+    background-position: right 33%;
+    background-repeat: no-repeat;
+    background-size: .7em;
+    padding-right: .8em;
 }

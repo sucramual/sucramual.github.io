@@ -28,7 +28,7 @@ layout: layouts/base.njk
       </h2>
       <div class="flex items-center gap-3">
           <span class="text-sm font-medium text-gray-500 font-mono">Dec 2025</span>
-          <a href="https://drive.google.com/file/d/1VwYcegvtap0NVDjC8PCViQB2TaGnjS9X/view?usp=share_link" class="text-xs uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded font-semibold transition-colors" target="_blank" rel="noopener noreferrer">Report</a>
+          <a href="https://drive.google.com/file/d/1VwYcegvtap0NVDjC8PCViQB2TaGnjS9X/view?usp=share_link" class="text-xs uppercase tracking-wider bg-blue-100 !text-blue-700 hover:bg-blue-200 hover:!text-blue-700 px-2 py-1 rounded font-semibold transition-colors !no-underline !bg-none" target="_blank" rel="noopener noreferrer">Report</a>
       </div>
     </div>
     <p class="text-gray-700 leading-relaxed">
@@ -44,7 +44,7 @@ layout: layouts/base.njk
       </h2>
       <div class="flex items-center gap-3">
           <span class="text-sm font-medium text-gray-500 font-mono">Dec 2025</span>
-          <a href="https://drive.google.com/file/d/13D29LVNYrEXfVPDH6AyCz_1X_gNjrnUf/view?usp=sharing" class="text-xs uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded font-semibold transition-colors" target="_blank" rel="noopener noreferrer">Report</a>
+          <a href="https://drive.google.com/file/d/13D29LVNYrEXfVPDH6AyCz_1X_gNjrnUf/view?usp=sharing" class="text-xs uppercase tracking-wider bg-blue-100 !text-blue-700 hover:bg-blue-200 hover:!text-blue-700 px-2 py-1 rounded font-semibold transition-colors !no-underline !bg-none" target="_blank" rel="noopener noreferrer">Report</a>
       </div>
     </div>
     <p class="text-gray-700 leading-relaxed">
@@ -73,7 +73,7 @@ layout: layouts/base.njk
       </h2>
       <div class="flex items-center gap-3">
           <span class="text-sm font-medium text-gray-500 font-mono">Nov 2024</span>
-          <a href="https://pycon-project-2024.streamlit.app/" class="text-xs uppercase tracking-wider bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded font-semibold transition-colors" target="_blank" rel="noopener noreferrer">App</a>
+          <a href="https://pycon-project-2024.streamlit.app/" class="text-xs uppercase tracking-wider bg-green-100 !text-green-700 hover:bg-green-200 hover:!text-green-700 px-2 py-1 rounded font-semibold transition-colors !no-underline !bg-none" target="_blank" rel="noopener noreferrer">App</a>
       </div>
     </div>
     <p class="text-gray-700 leading-relaxed">
