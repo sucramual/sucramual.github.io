@@ -296,9 +296,23 @@ Return ONLY valid JSON, no other text.
             const articleContent = document.querySelector('main.prose');
             const sidebar = document.getElementById('toc-sidebar');
             const tocList = document.getElementById('toc-list');
-            if (!articleContent || !sidebar || !tocList) return;
+            if (!articleContent) return;
+
+            // --- Date + Read Time ---
+            const h1 = articleContent.querySelector('h1');
+            if (h1) {
+                // Word count → read time
+                const words = articleContent.innerText.trim().split(/\s+/).length;
+                const mins = Math.max(1, Math.round(words / 200));
+
+                const meta = document.createElement('p');
+                meta.style.cssText = 'margin:-25px 0 50px 0; font-size:1.0rem; color:#888; font-family:inherit;';
+                meta.innerHTML = `Feb 17, 2026 &middot; ${mins} min read`;
+                h1.insertAdjacentElement('afterend', meta);
+            }
 
             // Only show TOC on wide screens (≥1300px)
+            if (!sidebar || !tocList) return;
             function checkWidth() {
                 sidebar.style.display = window.innerWidth >= 1300 ? 'block' : 'none';
             }
