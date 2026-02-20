@@ -1,9 +1,30 @@
 ---
-layout: layouts/base.njk
+layout: layouts/post.njk
 title: Comparing ChatGPT, vLLM, and SGLang
 date: 2026-02-17
 description: An investigation into the Economics of Inference, comparing vLLM and SGLang for high-throughput information extraction.
 tags: posts
+references:
+  - authors: "PewDiePie"
+    title: "I built my own $10,000 AI server"
+    url: "https://www.youtube.com/watch?v=qw4fDU18RcU"
+    year: "2024"
+  - authors: "Task, D. et al."
+    title: "ICDAR 2019 Competition on Scanned Receipt OCR and Information Extraction (SROIE)"
+    url: "https://github.com/zzzDavid/ICDAR-2019-SROIE/"
+    venue: "ICDAR 2019"
+    year: "2019"
+  - title: "OpenAI Structured Outputs Guide"
+    url: "https://developers.openai.com/api/docs/guides/structured-outputs"
+  - authors: "Kwon, W., Li, Z., Zhuang, S. et al."
+    title: "Efficient Memory Management for Large Language Model Serving with PagedAttention"
+    url: "https://arxiv.org/pdf/2309.06180"
+    venue: "SOSP 2023"
+    year: "2023"
+  - authors: "Zheng, L., Yin, L., Xie, Z. et al."
+    title: "SGLang: Efficient Execution of Structured Language Model Programs"
+    url: "https://arxiv.org/pdf/2312.07104"
+    year: "2024"
 ---
 
 # Comparing ChatGPT, vLLM, and SGLang
@@ -12,7 +33,7 @@ Notebook [here](https://colab.research.google.com/drive/1fwqXzZ9C2SL1SldK8abrxB1
 
 ## Motivation
 
-A couple of months ago, I watched PewDiePie’s [video](https://www.youtube.com/watch?v=qw4fDU18RcU&t=923s) where he essentially built his own mini-datacentre and an "AI council" by running multiple local models concurrently.
+A couple of months ago, I was watching PewDiePie’s [video](https://www.youtube.com/watch?v=qw4fDU18RcU&t=923s) where he essentially built his own mini-datacentre and an "AI council" by running multiple local models concurrently.
 
 What really caught my attention was the blazing-fast throughput of these local models. Compared to the sometimes painstakingly slow response of ChatGPT, these local models spit out tokens as if you were watching a YouTube video at 3x speed.
 
@@ -69,8 +90,9 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
 
 <div class="not-prose my-8" id="leaderboard">
 <style>
-  #leaderboard { font-family: inherit; margin-left: -10rem; margin-right: -10rem; }
-  #leaderboard table { width: 100%; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  #leaderboard { font-family: inherit; }
+  #leaderboard .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+  #leaderboard table { width: 100%; min-width: 480px; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
   #leaderboard thead tr { background: #ede9e0; }
   #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6355; cursor: pointer; user-select: none; white-space: nowrap; }
   #leaderboard th:hover { color: #3d3830; }
@@ -83,18 +105,19 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
   #leaderboard .bar { height: 8px; border-radius: 4px; flex-shrink: 0; }
   #leaderboard .bar-val { font-size: 0.82rem; color: #6b6355; white-space: nowrap; }
   #leaderboard .rank { font-weight: 700; color: #9c8a78; font-size: 0.85rem; }
-  #leaderboard .model-name { font-weight: 600; }
+  #leaderboard .model-name { font-weight: 600; min-width: 160px; white-space: nowrap; }
   #leaderboard .footnote { font-size: 0.78rem; color: #9c8a78; margin-top: 8px; }
   #leaderboard .sort-hint { font-size: 0.75rem; color: #b0a898; margin-bottom: 6px; }
 </style>
 <p class="sort-hint">↕ Click any column header to sort</p>
+<div class="table-scroll">
 <table id="lb-table">
   <thead>
     <tr>
       <th data-col="rank">#</th>
       <th data-col="name">Setup</th>
-      <th data-col="inference" class="active">Inference (s)<span class="sort-icon">▲</span></th>
-      <th data-col="setup">Setup (s)<span class="sort-icon">↕</span></th>
+      <th data-col="inference" class="active">Inference (ms)<span class="sort-icon">▲</span></th>
+      <th data-col="setup">Setup (ms)<span class="sort-icon">↕</span></th>
       <th data-col="adequacy">Adequateness<span class="sort-icon">↕</span></th>
       <th data-col="accuracy">Accuracy<span class="sort-icon">↕</span></th>
       <th data-col="score">Score<span class="sort-icon">↕</span></th>
@@ -102,26 +125,28 @@ To evaluate the results, I used GPT-5.2 as a judge on two metrics: Adequateness 
   </thead>
   <tbody id="lb-body"></tbody>
 </table>
+</div>
 <p class="footnote">* Ran on H100 × 1 with 80GB VRAM</p>
 </div>
 
 <script>
 (function() {
   const data = [
-    { name: "GPT-5-mini",         inference: 5.228,  setup: 0.0,     adequacy: 7.8,  accuracy: 8.55, score: 8.175 },
-    { name: "Qwen3-VL (vLLM)*",   inference: 0.34,   setup: 417.094, adequacy: 7.25, accuracy: 8.55, score: 7.9   },
-    { name: "Qwen3-VL (SGLang)*", inference: 0.173,  setup: 36.998,  adequacy: 7.1,  accuracy: 8.4,  score: 7.75  },
-    { name: "Google Vision",       inference: 16.545, setup: 0.0,     adequacy: 7.1,  accuracy: 7.85, score: 7.475 },
+    { name: "GPT-5-mini",         inference: 5228,    setup: 0,       adequacy: 7.8,  accuracy: 8.55, score: 8.175 },
+    { name: "Qwen3-VL (vLLM)*",   inference: 340,     setup: 417094,  adequacy: 7.25, accuracy: 8.55, score: 7.9   },
+    { name: "Qwen3-VL (SGLang)*", inference: 173,     setup: 36998,   adequacy: 7.1,  accuracy: 8.4,  score: 7.75  },
+    { name: "Google Vision",       inference: 16545,   setup: 0,       adequacy: 7.1,  accuracy: 7.85, score: 7.475 },
   ];
 
   const colors = { inference: "#c0392b", setup: "#8c6b5d", adequacy: "#5c7fa3", accuracy: "#7b6fa3", score: "#a3875c" };
-  const maxes  = { inference: 16.545, setup: 417.094, adequacy: 10, accuracy: 10, score: 10 };
+  const maxes  = { inference: 16545, setup: 417094, adequacy: 10, accuracy: 10, score: 10 };
 
   let sortCol = "inference", sortAsc = true;
 
   function bar(val, col) {
     const pct = Math.max(4, (val / maxes[col]) * 100);
-    return `<div class="bar-wrap"><div class="bar" style="width:${pct}px;background:${colors[col]}"></div><span class="bar-val">${val}</span></div>`;
+    const display = val === 0 ? '0' : val.toLocaleString();
+    return `<div class="bar-wrap"><div class="bar" style="width:${pct}px;background:${colors[col]}"></div><span class="bar-val">${display}</span></div>`;
   }
 
   function render() {
@@ -189,7 +214,7 @@ During inference, when the system encounters a compressed edge, it immediately a
 
 In my specific use case, where I constrain the model output to a fixed JSON schema, I can fully leverage SGLang’s compressed FSM component. SGLang also uses RadixAttention and cache-aware scheduling. RadixAttention enables KV-cache prefix caching that treats KV-cache as a LRU-evictable tree structure and reuses computation across different requests (e.g., shared few-shot examples or system prompts). Cache-aware scheduling prioritises requests that share a high similarity with cached tokens. Both contribute to SGLang's improved performance over vLLM.
 
-SGLang also publishes its own comparison benchmark between SGLang and vLLM here.
+SGLang also publishes its own comparison benchmark between SGLang and vLLM [here](https://github.com/sgl-project/sglang/tree/main/benchmark/benchmark_vllm_060).
 
 ### Caveat
 
