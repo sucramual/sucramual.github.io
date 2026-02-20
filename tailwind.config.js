@@ -41,7 +41,13 @@ module.exports = {
         'text': '#100F0F',       /* Flexoki dark text */
         'link': '#100F0F',       /* Flexoki black link */
         'link-hover': '#24837B', /* Flexoki cyan hover */
-        'ui-normal': '#CECDC3'   /* Flexoki faint gray */
+        'ui-normal': '#CECDC3',   /* Flexoki faint gray */
+
+        /* Charles O'Neill Custom Pill Colors */
+        'ai-bg': '#e8f4f8',      /* AI Button Background */
+        'ai-text': '#1e5a7d',    /* AI Button Text */
+        'other-bg': '#fdf6e8',   /* Other Button Background */
+        'other-text': '#b8860b'  /* Other Button Text */
       },
       typography: {
         DEFAULT: {

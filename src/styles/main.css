@@ -60,7 +60,11 @@ body {
 
     /* Base pill styling */
     .pill {
-        @apply text-xs uppercase tracking-wider px-2 py-1 rounded font-semibold transition-colors no-underline !bg-none;
+        @apply text-xs uppercase tracking-wider px-2 py-1 rounded font-semibold transition-colors;
+        text-decoration: none !important;
+        background-image: none !important;
+        padding-right: 0.5rem !important;
+        /* Reset padding from the arrow override */
     }
 
     /* specific color combinations */
