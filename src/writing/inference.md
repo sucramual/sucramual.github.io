@@ -30,7 +30,6 @@ references:
 # Comparing ChatGPT, vLLM, and SGLang
 
 Notebook [here](https://colab.research.google.com/drive/1fwqXzZ9C2SL1SldK8abrxB1PE55TuPWj?usp=sharing)! Feel free to play around.
-
 ## Motivation
 
 A couple of months ago, I was watching PewDiePie’s [video](https://www.youtube.com/watch?v=qw4fDU18RcU&t=923s) where he essentially built his own mini-datacentre and an "AI council" by running multiple local models concurrently.
