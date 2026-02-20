@@ -55,3 +55,32 @@ body {
     background-size: .7em;
     padding-right: .8em;
 }
+
+@layer components {
+
+    /* Base pill styling */
+    .pill {
+        @apply text-xs uppercase tracking-wider px-2 py-1 rounded font-semibold transition-colors no-underline !bg-none;
+    }
+
+    /* specific color combinations */
+    .pill-blue {
+        @apply bg-[#e8f4f8] !text-[#1e5a7d] hover:bg-[#d6ecf5] hover: !text-[#1e5a7d];
+    }
+
+    .pill-gold {
+        @apply bg-[#fdf6e8] !text-[#b8860b] hover:bg-[#f2e6cd] hover: !text-[#b8860b];
+    }
+
+    .pill-green {
+        @apply bg-[#e8f5e9] !text-[#1b5e20] hover:bg-[#c8e6c9] hover: !text-[#1b5e20];
+    }
+
+    .pill-red {
+        @apply bg-[#fae8e8] !text-[#9b1c1c] hover:bg-[#f5d6d6] hover: !text-[#9b1c1c];
+    }
+
+    .pill-purple {
+        @apply bg-[#f3e8fd] !text-[#551a8b] hover:bg-[#e6d4fc] hover: !text-[#551a8b];
+    }
+}
