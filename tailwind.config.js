@@ -40,7 +40,7 @@ module.exports = {
         'background': '#FFFCF0', /* Flexoki light background */
         'text': '#100F0F',       /* Flexoki dark text */
         'link': '#100F0F',       /* Flexoki black link */
-        'link-hover': '#24837B', /* Flexoki cyan hover */
+        'link-hover': '#66800B', /* Flexoki dark blue hover */
         'ui-normal': '#CECDC3',   /* Flexoki faint gray */
 
         /* Charles O'Neill Custom Pill Colors */
@@ -57,16 +57,22 @@ module.exports = {
               color: '#100F0F', // Matching our link color
               textDecorationColor: '#CECDC3', // Faint gray underline
               '&:hover': {
-                color: '#24837B', // Matching our hover color
+                color: '#205EA6', // Flexoki dark blue hover
               },
             },
             h1: {
               color: '#100F0F',
               fontWeight: '600',
+              a: {
+                textDecoration: 'none',
+              },
             },
             h2: {
               color: '#100F0F',
               fontWeight: '600',
+              a: {
+                textDecoration: 'none',
+              },
             },
             strong: {
               color: '#100F0F',
