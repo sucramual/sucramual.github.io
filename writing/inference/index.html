@@ -12,6 +12,15 @@
     <link rel="apple-touch-icon" href="/assets/images/logo.png?v=2" />
 </head>
 <body class="bg-background text-text min-h-screen">
+
+    <!-- Fixed TOC Sidebar — only on post pages, only on wide screens (shown via JS) -->
+    <aside id="toc-sidebar" style="display:none; position:fixed; left:max(16px, calc(50% - 640px)); top:100px; width:200px; font-size:0.875rem;">
+        <h3 style="font-weight:700; margin:0 0 16px 0; font-size:1rem; font-family:inherit;">Contents</h3>
+        <nav id="toc-list" style="display:flex; flex-direction:column; gap:10px;">
+            <!-- TOC links injected by JS -->
+        </nav>
+    </aside>
+
     <div class="max-w-2xl mx-auto px-4 py-8">
         <header class="mb-12">
             <nav class="flex justify-between items-center mb-16">
@@ -28,7 +37,7 @@
             <h1>Comparing ChatGPT, vLLM, and SGLang</h1>
 <p>Notebook <a href="https://colab.research.google.com/drive/1fwqXzZ9C2SL1SldK8abrxB1PE55TuPWj?usp=sharing">here</a>! Feel free to play around.</p>
 <h2>Motivation</h2>
-<p>A couple of months ago, I watched PewDiePie’s <a href="https://www.youtube.com/watch?v=qw4fDU18RcU&amp;t=923s">video</a> where he essentially built his own mini-datacentre and an &quot;AI council&quot; by running multiple local models concurrently.</p>
+<p>A couple of months ago, I was watching PewDiePie’s <a href="https://www.youtube.com/watch?v=qw4fDU18RcU&amp;t=923s">video</a> where he essentially built his own mini-datacentre and an &quot;AI council&quot; by running multiple local models concurrently.</p>
 <p>What really caught my attention was the blazing-fast throughput of these local models. Compared to the sometimes painstakingly slow response of ChatGPT, these local models spit out tokens as if you were watching a YouTube video at 3x speed.</p>
 <p>I'm also deeply interested in how models interpret the world, and one of the most common file types we encounter daily is the PDF. PDFs are often highly unstructured, containing tables, diagrams, and drawings, making them notoriously difficult for models to parse accurately. A major hurdle in integrating LLMs into enterprise workflows is the demand for flawless data. Imagine parsing Nvidia’s latest 10-K and the model mistakenly reads $10,000,000 as $10,000.000—a single punctuation error can corrupt downstream data ingestion. Catching such errors would require word-by-word human verification of the model's output, which is simply not feasible at scale.</p>
 <p>This led me to my core question: How do you achieve fast yet reliable information extraction?</p>
@@ -98,8 +107,9 @@ Return ONLY valid JSON, no other text.
 </table>
 <div class="not-prose my-8" id="leaderboard">
 <style>
-  #leaderboard { font-family: inherit; margin-left: -10rem; margin-right: -10rem; }
-  #leaderboard table { width: 100%; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  #leaderboard { font-family: inherit; }
+  #leaderboard .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+  #leaderboard table { width: 100%; min-width: 480px; border-collapse: collapse; background: #f7f5f0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
   #leaderboard thead tr { background: #ede9e0; }
   #leaderboard th { padding: 10px 14px; text-align: left; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6b6355; cursor: pointer; user-select: none; white-space: nowrap; }
   #leaderboard th:hover { color: #3d3830; }
@@ -112,18 +122,19 @@ Return ONLY valid JSON, no other text.
   #leaderboard .bar { height: 8px; border-radius: 4px; flex-shrink: 0; }
   #leaderboard .bar-val { font-size: 0.82rem; color: #6b6355; white-space: nowrap; }
   #leaderboard .rank { font-weight: 700; color: #9c8a78; font-size: 0.85rem; }
-  #leaderboard .model-name { font-weight: 600; }
+  #leaderboard .model-name { font-weight: 600; min-width: 160px; white-space: nowrap; }
   #leaderboard .footnote { font-size: 0.78rem; color: #9c8a78; margin-top: 8px; }
   #leaderboard .sort-hint { font-size: 0.75rem; color: #b0a898; margin-bottom: 6px; }
 </style>
 <p class="sort-hint">↕ Click any column header to sort</p>
+<div class="table-scroll">
 <table id="lb-table">
   <thead>
     <tr>
       <th data-col="rank">#</th>
       <th data-col="name">Setup</th>
-      <th data-col="inference" class="active">Inference (s)<span class="sort-icon">▲</span></th>
-      <th data-col="setup">Setup (s)<span class="sort-icon">↕</span></th>
+      <th data-col="inference" class="active">Inference (ms)<span class="sort-icon">▲</span></th>
+      <th data-col="setup">Setup (ms)<span class="sort-icon">↕</span></th>
       <th data-col="adequacy">Adequateness<span class="sort-icon">↕</span></th>
       <th data-col="accuracy">Accuracy<span class="sort-icon">↕</span></th>
       <th data-col="score">Score<span class="sort-icon">↕</span></th>
@@ -131,25 +142,27 @@ Return ONLY valid JSON, no other text.
   </thead>
   <tbody id="lb-body"></tbody>
 </table>
+</div>
 <p class="footnote">* Ran on H100 × 1 with 80GB VRAM</p>
 </div>
 <script>
 (function() {
   const data = [
-    { name: "GPT-5-mini",         inference: 5.228,  setup: 0.0,     adequacy: 7.8,  accuracy: 8.55, score: 8.175 },
-    { name: "Qwen3-VL (vLLM)*",   inference: 0.34,   setup: 417.094, adequacy: 7.25, accuracy: 8.55, score: 7.9   },
-    { name: "Qwen3-VL (SGLang)*", inference: 0.173,  setup: 36.998,  adequacy: 7.1,  accuracy: 8.4,  score: 7.75  },
-    { name: "Google Vision",       inference: 16.545, setup: 0.0,     adequacy: 7.1,  accuracy: 7.85, score: 7.475 },
+    { name: "GPT-5-mini",         inference: 5228,    setup: 0,       adequacy: 7.8,  accuracy: 8.55, score: 8.175 },
+    { name: "Qwen3-VL (vLLM)*",   inference: 340,     setup: 417094,  adequacy: 7.25, accuracy: 8.55, score: 7.9   },
+    { name: "Qwen3-VL (SGLang)*", inference: 173,     setup: 36998,   adequacy: 7.1,  accuracy: 8.4,  score: 7.75  },
+    { name: "Google Vision",       inference: 16545,   setup: 0,       adequacy: 7.1,  accuracy: 7.85, score: 7.475 },
   ];
 
   const colors = { inference: "#c0392b", setup: "#8c6b5d", adequacy: "#5c7fa3", accuracy: "#7b6fa3", score: "#a3875c" };
-  const maxes  = { inference: 16.545, setup: 417.094, adequacy: 10, accuracy: 10, score: 10 };
+  const maxes  = { inference: 16545, setup: 417094, adequacy: 10, accuracy: 10, score: 10 };
 
   let sortCol = "inference", sortAsc = true;
 
   function bar(val, col) {
     const pct = Math.max(4, (val / maxes[col]) * 100);
-    return `<div class="bar-wrap"><div class="bar" style="width:${pct}px;background:${colors[col]}"></div><span class="bar-val">${val}</span></div>`;
+    const display = val === 0 ? '0' : val.toLocaleString();
+    return `<div class="bar-wrap"><div class="bar" style="width:${pct}px;background:${colors[col]}"></div><span class="bar-val">${display}</span></div>`;
   }
 
   function render() {
@@ -200,7 +213,7 @@ Return ONLY valid JSON, no other text.
 <p><img src="/writing/SGLang_fig11.png" alt="SGLang Compressed FSM">
 <em>Figure 11: Compressed Finite State Machine (Source: SGLang Paper)</em></p>
 <p>In my specific use case, where I constrain the model output to a fixed JSON schema, I can fully leverage SGLang’s compressed FSM component. SGLang also uses RadixAttention and cache-aware scheduling. RadixAttention enables KV-cache prefix caching that treats KV-cache as a LRU-evictable tree structure and reuses computation across different requests (e.g., shared few-shot examples or system prompts). Cache-aware scheduling prioritises requests that share a high similarity with cached tokens. Both contribute to SGLang's improved performance over vLLM.</p>
-<p>SGLang also publishes its own comparison benchmark between SGLang and vLLM here.</p>
+<p>SGLang also publishes its own comparison benchmark between SGLang and vLLM <a href="https://github.com/sgl-project/sglang/tree/main/benchmark/benchmark_vllm_060">here</a>.</p>
 <h3>Caveat</h3>
 <p>For the sake of illustration, I opted for a simpler setup in this notebook. However, in a production environment serving multiple users, you would need to spin up an HTTP server for both vLLM and SGLang, primarily adding to the initialisation (setup) cost.</p>
 <p>Both libraries employ other nuances and tricks to boost speed, especially time-to-first-token (TTFT). Be sure to check out their docs or, even better, their papers! I personally found AlphaXiv helpful for my understanding.</p>
@@ -217,11 +230,152 @@ Return ONLY valid JSON, no other text.
 <p>Another direction would be to fine-tune Qwen-3-VL and run ablations against the above task. Fine-tuning the model for this specific notebook's task offers limited benefits since all candidates performed relatively well. However, as the task becomes more complicated and abstract, introducing a fine-tuned model into the comparison will serve as a meaningful benchmark against the non-fine-tuned model.</p>
 <p>Beyond raw inference speed, the next phase involves containerization (Docker/K8s) and testing with model quantization (AWQ or FP8). Quantization is particularly vital for fitting larger VLMs into consumer or mid-tier enterprise GPUs while maintaining the memory bandwidth necessary for high-speed decoding.</p>
 
+
+            
+            <section style="margin-top:48px; padding-top:24px; border-top:1px solid #e5e7eb;">
+                <h2 style="font-size:1.1em; margin-top:0; margin-bottom:16px;">References</h2>
+                <ol style="padding-left:24px; margin:0; list-style:decimal;">
+                    
+                    <li id="ref-1" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        PewDiePie. 
+                        
+                            <a href="https://www.youtube.com/watch?v=qw4fDU18RcU" class="text-link hover:text-link-hover">I built my own $10,000 AI server</a>
+                        
+                        
+                         (2024).
+                    </li>
+                    
+                    <li id="ref-2" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        Task, D. et al.. 
+                        
+                            <a href="https://github.com/zzzDavid/ICDAR-2019-SROIE/" class="text-link hover:text-link-hover">ICDAR 2019 Competition on Scanned Receipt OCR and Information Extraction (SROIE)</a>
+                        
+                        . <em>ICDAR 2019</em>
+                         (2019).
+                    </li>
+                    
+                    <li id="ref-3" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        
+                        
+                            <a href="https://developers.openai.com/api/docs/guides/structured-outputs" class="text-link hover:text-link-hover">OpenAI Structured Outputs Guide</a>
+                        
+                        
+                        .
+                    </li>
+                    
+                    <li id="ref-4" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        Kwon, W., Li, Z., Zhuang, S. et al.. 
+                        
+                            <a href="https://arxiv.org/pdf/2309.06180" class="text-link hover:text-link-hover">Efficient Memory Management for Large Language Model Serving with PagedAttention</a>
+                        
+                        . <em>SOSP 2023</em>
+                         (2023).
+                    </li>
+                    
+                    <li id="ref-5" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        Zheng, L., Yin, L., Xie, Z. et al.. 
+                        
+                            <a href="https://arxiv.org/pdf/2312.07104" class="text-link hover:text-link-hover">SGLang: Efficient Execution of Structured Language Model Programs</a>
+                        
+                        
+                         (2024).
+                    </li>
+                    
+                </ol>
+            </section>
+            
         </main>
 
         <footer class="mt-16 pt-8 border-t border-gray-200 text-sm text-gray-600">
             <p>&copy; 2026 Marcus Lau</p>
         </footer>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const articleContent = document.querySelector('main.prose');
+            const sidebar = document.getElementById('toc-sidebar');
+            const tocList = document.getElementById('toc-list');
+            if (!articleContent || !sidebar || !tocList) return;
+
+            // Only show TOC on wide screens (≥1300px)
+            function checkWidth() {
+                sidebar.style.display = window.innerWidth >= 1300 ? 'block' : 'none';
+            }
+
+            // Build TOC from h2 and h3 headings
+            const headings = articleContent.querySelectorAll('h2, h3');
+            if (headings.length === 0) return;
+
+            headings.forEach(heading => {
+                if (!heading.id) {
+                    heading.id = heading.textContent.trim().toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/(^-|-$)/g, '');
+                }
+
+                const link = document.createElement('a');
+                link.href = '#' + heading.id;
+                link.textContent = heading.textContent;
+                link.className = 'toc-link';
+                Object.assign(link.style, {
+                    color: '#b0a99f',
+                    textDecoration: 'none',
+                    lineHeight: '1.4',
+                    transition: 'color 0.15s ease'
+                });
+                if (heading.tagName === 'H3') {
+                    link.style.paddingLeft = '12px';
+                    link.style.fontSize = '0.8rem';
+                }
+                link.addEventListener('mouseenter', () => {
+                    if (!link.classList.contains('active')) link.style.color = '#000';
+                });
+                link.addEventListener('mouseleave', () => {
+                    if (!link.classList.contains('active')) link.style.color = '#b0a99f';
+                });
+                tocList.appendChild(link);
+            });
+
+            // Scroll-spy: highlight the active section
+            const tocLinks = document.querySelectorAll('.toc-link');
+
+            function setActiveLink() {
+                let currentActive = null;
+                headings.forEach(section => {
+                    if (window.scrollY + 120 >= section.offsetTop) {
+                        currentActive = tocList.querySelector(`a[href="#${section.id}"]`);
+                    }
+                });
+                tocLinks.forEach(link => {
+                    link.classList.remove('active');
+                    link.style.color = '#b0a99f';
+                    link.style.fontWeight = 'normal';
+                });
+                if (currentActive) {
+                    currentActive.classList.add('active');
+                    currentActive.style.color = '#000';
+                    currentActive.style.fontWeight = '700';
+                }
+            }
+
+            // Smooth scroll on click
+            tocLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        window.scrollTo({ top: target.offsetTop - 20, behavior: 'smooth' });
+                        history.pushState(null, null, this.getAttribute('href'));
+                    }
+                });
+            });
+
+            checkWidth();
+            window.addEventListener('resize', checkWidth);
+            setActiveLink();
+            window.addEventListener('scroll', setActiveLink);
+        });
+    </script>
 </body>
 </html>
