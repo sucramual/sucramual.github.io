@@ -8,7 +8,7 @@ html {
 }
 
 body {
-    @apply antialiased bg-background text-text;
+    @apply bg-background text-text;
 }
 
 /* Typography enhancements */
@@ -18,7 +18,7 @@ body {
 }
 
 .prose h1 {
-    @apply text-5xl font-serif font-semibold mb-8;
+    @apply text-3xl font-serif font-semibold mb-8;
 }
 
 .prose h2 {
@@ -30,7 +30,7 @@ body {
 }
 
 .prose p {
-    @apply font-serif mb-6 leading-loose text-lg;
+    @apply font-serif mb-6 leading-relaxed text-[17px];
 }
 
 /* Navigation styling */

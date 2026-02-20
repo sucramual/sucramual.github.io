@@ -5,13 +5,11 @@ layout: layouts/base.njk
 
 # My Projects
 
-Here's a collection of projects I've worked on: 
-
-<div class="not-prose space-y-12 mt-10">
+<div class="not-prose space-y-10">
     
   <!-- Project 1 -->
   <article class="group">
-    <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 mb-2">
+    <div class="flex flex-col sm:flex-row sm:gap-4 mb-4">
       <h2 class="text-xl font-semibold text-text">
         <a href="https://gtclasses-wtf.fly.dev" class="hover:text-link transition-colors" target="_blank" rel="noopener noreferrer">GTClasses.wtf</a>
       </h2>
@@ -24,7 +22,7 @@ Here's a collection of projects I've worked on:
 
   <!-- Project 2 -->
   <article class="group">
-    <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 mb-2">
+    <div class="flex flex-col sm:flex-row sm:gap-4 mb-4">
       <h2 class="text-xl font-semibold text-text">
         <a href="https://github.com/sucramual/GR-ACE" class="hover:text-link transition-colors" target="_blank" rel="noopener noreferrer">Agentic Context Engineering vs. Parameter finetuning</a>
       </h2>
@@ -40,7 +38,7 @@ Here's a collection of projects I've worked on:
 
   <!-- Project 3 -->
   <article class="group">
-    <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 mb-2">
+    <div class="flex flex-col sm:flex-row sm:gap-4 mb-4">
       <h2 class="text-xl font-semibold text-text">
         <a href="https://github.com/sucramual/Decision-Transformers" class="hover:text-link transition-colors" target="_blank" rel="noopener noreferrer">Decision Transformer Modification</a>
       </h2>
@@ -56,7 +54,7 @@ Here's a collection of projects I've worked on:
 
   <!-- Project 4 -->
   <article class="group">
-    <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 mb-2">
+    <div class="flex flex-col sm:flex-row sm:gap-4 mb-4">
       <h2 class="text-xl font-semibold text-text">
         <a href="https://github.com/sucramual/Soundscape-Cartography" class="hover:text-link transition-colors" target="_blank" rel="noopener noreferrer">Soundscape Cartography</a>
       </h2>
@@ -69,7 +67,7 @@ Here's a collection of projects I've worked on:
 
   <!-- Project 5 -->
   <article class="group">
-    <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 mb-2">
+    <div class="flex flex-col sm:flex-row sm:gap-4 mb-4">
       <h2 class="text-xl font-semibold text-text">
         <a href="https://github.com/sucramual/PyCon-Project" class="hover:text-link transition-colors" target="_blank" rel="noopener noreferrer">LLM Cantonese Response Comparison</a>
       </h2>
