@@ -1,0 +1,27 @@
+---
+layout: layouts/base.njk
+title: Writing - Marcus Lau
+---
+
+
+<h1 class="page-heading">Writing</h1>
+
+<div class="not-prose" style="margin-top: 1rem;">
+{% set currentYear = "" %}
+{% for post in collections.posts | reverse %}
+  {% set postYear = post.date | date("YYYY") %}
+  {% if postYear != currentYear %}
+    {% set currentYear = postYear %}
+    {% if not loop.first %}</div>{% endif %}
+    <div style="margin-bottom: 0rem;">
+      <div style="font-size: 1.2rem; font-weight: 600; color: #999; margin-bottom: 0.75rem; font-family: 'Spectral', serif;">{{ postYear }}</div>
+  {% endif %}
+
+  <a href="{{ post.url }}" class="text-text hover:text-link-hover transition-colors" style="display:flex; align-items:baseline; gap:16px; text-decoration:none; padding: 6px 0;">
+    <time style="font-size: 0.85rem; color: #aaa; font-family: 'SF Mono', 'Menlo', monospace; white-space:nowrap; min-width: 52px;">{{ post.date | date("MMM DD") }}</time>
+    <span style="font-family: 'Spectral', serif; font-size: 1.1rem;">{{ post.data.title }}</span>
+  </a>
+
+  {% if loop.last %}</div>{% endif %}
+{% endfor %}
+</div>

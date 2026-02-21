@@ -31,6 +31,9 @@ module.exports = function (eleventyConfig) {
     // Date filter
     eleventyConfig.addFilter("date", function (dateVal, format) {
         const d = new Date(dateVal);
+        if (format === "YYYY") {
+            return d.toLocaleDateString("en-US", { year: "numeric", timeZone: "UTC" });
+        }
         if (format === "MMM YYYY") {
             return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
         }
@@ -39,6 +42,9 @@ module.exports = function (eleventyConfig) {
         }
         if (format === "DD MMM YYYY") {
             return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+        }
+        if (format === "MMM DD") {
+            return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
         }
         return d.toISOString().slice(0, 10);
     });
