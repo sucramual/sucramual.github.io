@@ -2,7 +2,7 @@
 layout: layouts/post.njk
 title: Comparing ChatGPT, vLLM, and SGLang
 date: 2026-02-17
-description: An investigation into the Economics of Inference, comparing vLLM and SGLang for high-throughput information extraction.
+description: SGLang is fast.
 tags: posts
 references:
   - authors: "PewDiePie"
