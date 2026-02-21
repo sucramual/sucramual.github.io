@@ -17,10 +17,6 @@ body {
     /* Allow content to use full width */
 }
 
-/* Page heading — single source of truth for all h1 page titles */
-.page-heading {
-    @apply text-3xl font-serif font-semibold mb-4;
-}
 
 .prose h1 {
     @apply text-3xl font-serif font-semibold mb-4;
