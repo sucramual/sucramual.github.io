@@ -1,8 +1,12 @@
 const path = require("path");
 const postcss = require("postcss");
 const fs = require("fs/promises");
+const syntaxHighlight = require("@11ty/eleventy-plugin-syntaxhighlight");
 
 module.exports = function (eleventyConfig) {
+    // Syntax highlighting
+    eleventyConfig.addPlugin(syntaxHighlight);
+
     // Process CSS
     eleventyConfig.addTemplateFormats("css");
 
@@ -51,8 +55,8 @@ module.exports = function (eleventyConfig) {
 
     // Copy any other static files
     eleventyConfig.addPassthroughCopy("src/assets");
-    eleventyConfig.addPassthroughCopy({ "src/writing/*.png": "writing" });
-    eleventyConfig.addPassthroughCopy({ "src/writing/*.jpg": "writing" });
+    eleventyConfig.addPassthroughCopy("src/writing/**/*.png");
+    eleventyConfig.addPassthroughCopy("src/writing/**/*.jpg");
 
     return {
         dir: {
