@@ -103,3 +103,280 @@ body {
         @apply bg-[#e6d4fc] !text-[#551a8b];
     }
 }
+
+/* ═══════════════════════════════════════════════
+   Code Blocks — Warm Flexoki Prism Theme
+   ═══════════════════════════════════════════════ */
+
+.prose pre[class*="language-"] {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: #4D7A0F;
+    background: #F2F0E5;
+    border: 1px solid #E6E4D9;
+    border-left: 3px solid #D0CDC3;
+    border-radius: 6px;
+    padding: 1.25rem 1.5rem;
+    margin: 1.75rem 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    tab-size: 4;
+}
+
+.prose pre[class*="language-"] code {
+    color: #4D7A0F;
+}
+
+/* Scrollbar styling for code blocks */
+.prose pre[class*="language-"]::-webkit-scrollbar {
+    height: 6px;
+}
+.prose pre[class*="language-"]::-webkit-scrollbar-track {
+    background: transparent;
+}
+.prose pre[class*="language-"]::-webkit-scrollbar-thumb {
+    background: #D0CDC3;
+    border-radius: 3px;
+}
+
+/* Language label */
+.prose pre[class*="language-"]::before {
+    content: attr(class);
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 2px 10px;
+    font-size: 0.68rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #878580;
+    background: #E6E4D9;
+    border-bottom-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+
+/* Extract just the language name for the label */
+.prose pre[class~="language-python"]::before { content: "python"; }
+.prose pre[class~="language-javascript"]::before,
+.prose pre[class~="language-js"]::before { content: "js"; }
+.prose pre[class~="language-typescript"]::before,
+.prose pre[class~="language-ts"]::before { content: "ts"; }
+.prose pre[class~="language-html"]::before { content: "html"; }
+.prose pre[class~="language-css"]::before { content: "css"; }
+.prose pre[class~="language-json"]::before { content: "json"; }
+.prose pre[class~="language-bash"]::before,
+.prose pre[class~="language-shell"]::before { content: "shell"; }
+.prose pre[class~="language-yaml"]::before { content: "yaml"; }
+.prose pre[class~="language-sql"]::before { content: "sql"; }
+.prose pre[class~="language-go"]::before { content: "go"; }
+.prose pre[class~="language-rust"]::before { content: "rust"; }
+.prose pre[class~="language-c"]::before { content: "c"; }
+.prose pre[class~="language-cpp"]::before { content: "c++"; }
+
+/* Hide label for plain/unlabeled code blocks */
+.prose pre:not([class*="language-"])::before {
+    display: none;
+}
+
+/* Inline code */
+.prose code:not([class*="language-"]) {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82em;
+    background: #F2F0E5;
+    border: 1px solid #E6E4D9;
+    border-radius: 4px;
+    padding: 0.15em 0.4em;
+    color: #100F0F;
+    font-weight: 400;
+}
+
+/* Reset code inside pre */
+.prose pre code {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: inherit !important;
+    border-radius: 0 !important;
+}
+
+/* ── Prism Token Colors (Flexoki-inspired) ── */
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+    color: #6F6E69;
+    font-style: italic;
+}
+
+.token.punctuation {
+    color: #575653;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol {
+    color: #BC5215;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin {
+    color: #66800B;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+    color: #AF3029;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+    color: #8B7EC8;
+}
+
+.token.function,
+.token.class-name {
+    color: #205EA6;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+    color: #AD8301;
+}
+
+.token.important,
+.token.bold {
+    font-weight: 600;
+}
+
+.token.italic {
+    font-style: italic;
+}
+
+.token.deleted {
+    color: #AF3029;
+}
+
+.token.inserted {
+    color: #66800B;
+}
+
+/* ── Plain / unfenced code blocks (e.g. ASCII diagrams) ── */
+
+.prose pre:not([class*="language-"]) {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    background: #F2F0E5;
+    border: 1px solid #E6E4D9;
+    border-left: 3px solid #D0CDC3;
+    border-radius: 6px;
+    padding: 1.25rem 1.5rem;
+    margin: 1.75rem 0;
+    overflow-x: auto;
+    color: #3D3830;
+}
+
+/* ═══════════════════════════════════════════════
+   Figures & Images — Editorial Framing
+   ═══════════════════════════════════════════════ */
+
+.prose img {
+    border-radius: 6px;
+    border: 1px solid #E6E4D9;
+    box-shadow: 0 2px 12px rgba(16, 15, 15, 0.06);
+    margin: 2rem auto 0.5rem;
+    display: block;
+    max-width: 100%;
+    transition: box-shadow 0.25s ease;
+}
+
+.prose img:hover {
+    box-shadow: 0 4px 20px rgba(16, 15, 15, 0.1);
+}
+
+/* Image caption: <em> inside same <p> as <img>, or in following <p> */
+.prose img + em,
+.prose p:has(> img) + p > em:only-child {
+    display: block;
+    text-align: center;
+    font-size: 0.82rem;
+    color: #878580;
+    margin-top: 0.5rem;
+    margin-bottom: 2rem;
+    line-height: 1.5;
+    font-style: italic;
+    font-family: 'Spectral', serif;
+}
+
+/* Ensure <p> wrapping img + caption has no bottom margin doubling */
+.prose p:has(> img) {
+    margin-bottom: 0;
+}
+
+/* ── Markdown tables ── */
+
+.prose table {
+    font-size: 0.88rem;
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.75rem 0;
+    overflow-x: auto;
+    display: block;
+    -webkit-overflow-scrolling: touch;
+}
+
+.prose thead tr {
+    background: #F2F0E5;
+    border-bottom: 2px solid #D0CDC3;
+}
+
+.prose th {
+    padding: 0.6rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    color: #6F6E69;
+}
+
+.prose td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #E6E4D9;
+    color: #3D3830;
+    vertical-align: top;
+}
+
+.prose tbody tr:hover td {
+    background: #F9F8F2;
+}
+
+/* ── Responsive: tighter padding on mobile ── */
+
+@media (max-width: 600px) {
+    .prose pre[class*="language-"],
+    .prose pre:not([class*="language-"]) {
+        padding: 1rem;
+        font-size: 0.78rem;
+        margin-left: -1rem;
+        margin-right: -1rem;
+        border-radius: 0;
+        border-left: 3px solid #D0CDC3;
+        border-right: none;
+    }
+}

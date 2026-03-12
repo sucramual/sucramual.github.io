@@ -195,7 +195,7 @@ In LLM serving, the primary bottleneck during decoding is the memory capacity an
 
 This flexible memory management enables vLLM’s secondary throughput driver: Continuous Batching. Because memory is allocated dynamically rather than reserved in advance, the engine can inject new requests into the batch as soon as blocks become available, rather than waiting for an entire static batch to finish. By combining granular memory control with dynamic scheduling, the system eliminates 'bubbles' in GPU computation and maximizes aggregate throughput.
 
-![vLLM PagedAttention](/writing/vLLM_fig3.png)
+![vLLM PagedAttention](./vLLM_fig3.png)
 *Figure 3: PagedAttention memory management (Source: vLLM Paper)*
 
 ### What Makes SGLang Even Faster?
@@ -208,7 +208,7 @@ A simple example to illustrate this is the regex `{\"age\": \d+\}`. The characte
 
 During inference, when the system encounters a compressed edge, it immediately appends the corresponding string to the output buffer without running the model, drastically saving compute resources and speeding up inference. The model only runs once with the prefilled text to predict the next uncertain token.
 
-![SGLang Compressed FSM](/writing/SGLang_fig11.png)
+![SGLang Compressed FSM](./SGLang_fig11.png)
 *Figure 11: Compressed Finite State Machine (Source: SGLang Paper)*
 
 In my specific use case, where I constrain the model output to a fixed JSON schema, I can fully leverage SGLang’s compressed FSM component. SGLang also uses RadixAttention and cache-aware scheduling. RadixAttention enables KV-cache prefix caching that treats KV-cache as a LRU-evictable tree structure and reuses computation across different requests (e.g., shared few-shot examples or system prompts). Cache-aware scheduling prioritises requests that share a high similarity with cached tokens. Both contribute to SGLang's improved performance over vLLM.
