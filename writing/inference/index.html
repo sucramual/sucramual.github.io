@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/styles/main.css">
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/png" href="/assets/images/logo.png?v=2" />
     <link rel="apple-touch-icon" href="/assets/images/logo.png?v=2" />
 </head>
@@ -203,14 +203,14 @@ Return ONLY valid JSON, no other text.
 <p>In LLM serving, the primary bottleneck during decoding is the memory capacity and bandwidth of the KV-cache. While storing keys and values (K/V) prevents redundant recomputation, traditional serving systems are notoriously inefficient in how they handle this memory. They typically allocate KV data as contiguous 'slabs' based on a request's maximum potential length. This leads to significant internal fragmentation and 'stranded' memory that cannot be utilized by concurrent requests—effectively capping throughput.</p>
 <p><a href="https://arxiv.org/pdf/2309.06180">vLLM</a> addresses this through a fundamental architectural shift. At its core is PagedAttention, which manages the KV-cache similarly to virtual memory in an operating system. By storing KV data in fixed-size, non-contiguous blocks allocated from a central pool, vLLM eliminates external fragmentation and bounds wasted space to the final, partially filled block of a sequence.</p>
 <p>This flexible memory management enables vLLM’s secondary throughput driver: Continuous Batching. Because memory is allocated dynamically rather than reserved in advance, the engine can inject new requests into the batch as soon as blocks become available, rather than waiting for an entire static batch to finish. By combining granular memory control with dynamic scheduling, the system eliminates 'bubbles' in GPU computation and maximizes aggregate throughput.</p>
-<p><img src="/writing/vLLM_fig3.png" alt="vLLM PagedAttention">
+<p><img src="./vLLM_fig3.png" alt="vLLM PagedAttention">
 <em>Figure 3: PagedAttention memory management (Source: vLLM Paper)</em></p>
 <h3>What Makes SGLang Even Faster?</h3>
 <p>I have to say, the 50% drop in latency between vLLM and SGLang is just as striking as the 90%+ drop between GPT-5-mini and vLLM. I was very curious why.</p>
 <p>The <a href="https://arxiv.org/pdf/2312.07104">SGLang paper</a> offers some key insights. On top of the continuous batching technique used by vLLM, SGLang implements what they call a compressed finite state machine (FSM). Modern inference often uses an FSM as a filter to force the model’s output into a specific format, such as JSON. SGLang takes this a step further by iterating through the FSM and searching for &quot;Singular transition edges&quot; and &quot;Compressed edges.&quot; A Singular transition edge is an edge in the FSM where there is only one single acceptable possible successor token. Consecutive singular edges are merged into a Compressed edge.</p>
 <p>A simple example to illustrate this is the regex <code>{\&quot;age\&quot;: \d+\}</code>. The characters &quot;{&quot;, &quot;\n&quot;, and the string up until &quot;:&quot; are all singular transition edges because the JSON schema is fixed. These consecutive singular edges are then compressed into one Compressed edge.</p>
 <p>During inference, when the system encounters a compressed edge, it immediately appends the corresponding string to the output buffer without running the model, drastically saving compute resources and speeding up inference. The model only runs once with the prefilled text to predict the next uncertain token.</p>
-<p><img src="/writing/SGLang_fig11.png" alt="SGLang Compressed FSM">
+<p><img src="./SGLang_fig11.png" alt="SGLang Compressed FSM">
 <em>Figure 11: Compressed Finite State Machine (Source: SGLang Paper)</em></p>
 <p>In my specific use case, where I constrain the model output to a fixed JSON schema, I can fully leverage SGLang’s compressed FSM component. SGLang also uses RadixAttention and cache-aware scheduling. RadixAttention enables KV-cache prefix caching that treats KV-cache as a LRU-evictable tree structure and reuses computation across different requests (e.g., shared few-shot examples or system prompts). Cache-aware scheduling prioritises requests that share a high similarity with cached tokens. Both contribute to SGLang's improved performance over vLLM.</p>
 <p>SGLang also publishes its own comparison benchmark between SGLang and vLLM <a href="https://github.com/sgl-project/sglang/tree/main/benchmark/benchmark_vllm_060">here</a>.</p>
