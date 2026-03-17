@@ -1,0 +1,74 @@
+<svg viewBox="0 0 520 780" xmlns="http://www.w3.org/2000/svg" style="font-family:'Spectral',Georgia,serif;">
+  <style>
+    .step-box { fill: #FFFCF0; stroke: #E6E4D9; stroke-width: 1.5; rx: 8; }
+    .divergence-box { fill: #FFFCF0; stroke: #66800B; stroke-width: 1.5; rx: 8; }
+    .step-text { fill: #100F0F; font-size: 14px; text-anchor: middle; dominant-baseline: central; }
+    .divergence-label { fill: #66800B; font-size: 12px; font-weight: 700; text-anchor: middle; }
+    .divergence-text { fill: #3D3830; font-size: 12px; text-anchor: start; }
+    .framework-vllm { fill: #205EA6; font-size: 12px; font-weight: 600; }
+    .framework-sglang { fill: #BC5215; font-size: 12px; font-weight: 600; }
+    .arrow-line { stroke: #CECDC3; stroke-width: 1.5; }
+    .arrow-head { fill: #CECDC3; }
+  </style>
+
+  <rect class="step-box" x="140" y="10" width="240" height="40"/>
+  <text class="step-text" x="260" y="30">Request arrives (HTTP)</text>
+
+  <line class="arrow-line" x1="260" y1="50" x2="260" y2="70"/>
+  <polygon class="arrow-head" points="254,66 260,74 266,66"/>
+
+  <rect class="step-box" x="140" y="76" width="240" height="40"/>
+  <text class="step-text" x="260" y="96">Tokenize prompt</text>
+
+  <line class="arrow-line" x1="260" y1="116" x2="260" y2="136"/>
+  <polygon class="arrow-head" points="254,132 260,140 266,132"/>
+
+  <rect class="step-box" x="140" y="142" width="240" height="40"/>
+  <text class="step-text" x="260" y="162">Send to scheduler (ZMQ)</text>
+
+  <line class="arrow-line" x1="260" y1="182" x2="260" y2="202"/>
+  <polygon class="arrow-head" points="254,198 260,206 266,198"/>
+
+  <rect class="step-box" x="140" y="208" width="240" height="40"/>
+  <text class="step-text" x="260" y="228">Add to waiting queue</text>
+
+  <line class="arrow-line" x1="260" y1="248" x2="260" y2="278"/>
+  <polygon class="arrow-head" points="254,274 260,282 266,274"/>
+
+  <rect class="divergence-box" x="30" y="284" width="460" height="108"/>
+  <text class="divergence-label" x="260" y="306">DIVERGENCE 1: SCHEDULING PRIORITY</text>
+  <text class="framework-vllm" x="60" y="334">vLLM</text>
+  <text class="divergence-text" x="120" y="334">Schedule decode first, then prefill</text>
+  <text class="framework-sglang" x="60" y="366">SGLang</text>
+  <text class="divergence-text" x="120" y="366">Schedule prefill first, then decode</text>
+
+  <line class="arrow-line" x1="260" y1="392" x2="260" y2="422"/>
+  <polygon class="arrow-head" points="254,418 260,426 266,418"/>
+
+  <rect class="step-box" x="110" y="428" width="300" height="40"/>
+  <text class="step-text" x="260" y="448">Look up prefix cache</text>
+
+  <line class="arrow-line" x1="260" y1="468" x2="260" y2="498"/>
+  <polygon class="arrow-head" points="254,494 260,502 266,494"/>
+
+  <rect class="divergence-box" x="30" y="504" width="460" height="128"/>
+  <text class="divergence-label" x="260" y="526">DIVERGENCE 2: PREFIX CACHE &amp; ALLOCATION</text>
+  <text class="framework-vllm" x="60" y="554">vLLM</text>
+  <text class="divergence-text" x="120" y="554">Block-hash lookup, 16-token blocks</text>
+  <text class="divergence-text" x="120" y="572">Block-aligned allocation (CPU free list)</text>
+  <text class="framework-sglang" x="60" y="602">SGLang</text>
+  <text class="divergence-text" x="120" y="602">Radix trie walk, token-by-token</text>
+  <text class="divergence-text" x="120" y="620">Per-token allocation (GPU free list)</text>
+
+  <line class="arrow-line" x1="260" y1="632" x2="260" y2="662"/>
+  <polygon class="arrow-head" points="254,658 260,666 266,658"/>
+
+  <rect class="step-box" x="100" y="668" width="320" height="40"/>
+  <text class="step-text" x="260" y="688">Forward pass (attention + MLP)</text>
+
+  <line class="arrow-line" x1="260" y1="708" x2="260" y2="728"/>
+  <polygon class="arrow-head" points="254,724 260,732 266,724"/>
+
+  <rect class="step-box" x="100" y="734" width="320" height="40"/>
+  <text class="step-text" x="260" y="754">Sample output token → stream back</text>
+</svg>

@@ -1,6 +1,6 @@
 # Marcus' personal website
 
-Personal portfolio and blog. Live at [https://sucramual.github.io](https://sucramual.github.io).
+Personal portfolio and blog. Live at [https://marcus-lau.com](https://sucramual.github.io).
 
 ## Tech Stack
 - **Static Site Generator:** [Eleventy (11ty)](https://www.11ty.dev/)
