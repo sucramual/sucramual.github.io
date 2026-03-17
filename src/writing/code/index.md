@@ -2,7 +2,7 @@
 layout: layouts/post.njk
 title: "Inside the Serving Loop: How vLLM and SGLang Actually Handle Your Requests"
 date: 2026-03-07
-description: I read both codebases. They're more similar than you think.
+description: They're more similar than you think.
 tags: posts
 references:
   - authors: "Kwon, W., Li, Z., Zhuang, S. et al."
@@ -18,58 +18,72 @@ references:
 
 # Inside the Serving Loop: How vLLM and SGLang Actually Handle Your Requests
 
-*Part 1a of a code-path study series — what I found reading both codebases, and what I want to test next.*
-
 In my [previous post](/writing/inference/), I benchmarked vLLM and SGLang from the outside — measuring speed and accuracy on structured extraction tasks. The numbers were interesting, but they raised a harder question: *why* do these frameworks perform the way they do?
 
 To find out, I did what any self-respecting engineer would do: I read the code. Both codebases, end-to-end, tracing a single request from API entry to first token output.
 
-What surprised me most wasn't the differences — it was how similar the two frameworks are. They share the same high-level architecture, the same core optimizations, and in many places, nearly identical design decisions. The community discourse sometimes treats them as fundamentally different approaches to inference serving. They're not. They're two implementations of the same ideas, with a few divergence points that *might* matter for performance. This post is about those divergence points, and what I plan to test in Part 1b.
+What surprised me most wasn't the differences — it was how similar the two frameworks are. They share the same high-level architecture, the same core optimizations, and in many places, nearly identical design decisions. The community discourse sometimes treats them as fundamentally different approaches to inference serving. They're not. They're two implementations of the same ideas, with a few divergence points that *might* matter for performance.
 
 ## The Path of a Request
 
 Both frameworks follow the same basic flow. A request arrives over HTTP, gets tokenized, crosses a process boundary via ZMQ to a scheduler, the scheduler decides what to compute and allocates KV cache memory, a GPU worker runs the forward pass, and the first token streams back.
 
-Here's what that looks like, with the points where the two frameworks diverge marked:
+Here's what that looks like, with the two divergence points marked:
 
-```
- Request arrives (HTTP)
-       |
- Tokenize prompt
-       |
- Send to scheduler (ZMQ)
-       |
- Scheduler receives request, adds to waiting queue
-       |
-       |  ┌─────────────────────────────────────────────────────┐
-       |  │ DIVERGENCE 1: Scheduling Priority                   │
-       |  │                                                     │
-       |  │ vLLM: schedule decode first, then prefill            │
-       |  │ SGLang: schedule prefill first, then decode          │
-       |  └─────────────────────────────────────────────────────┘
-       |
- Look up prefix cache for shared/repeated prompt tokens
-       |
-       |  ┌─────────────────────────────────────────────────────┐
-       |  │ DIVERGENCE 2: Prefix Cache & Allocation             │
-       |  │                                                     │
-       |  │ vLLM: block-hash lookup, 16-token blocks,           │
-       |  │       block-aligned allocation (CPU free list)      │
-       |  │                                                     │
-       |  │ SGLang: radix trie walk, token-by-token,            │
-       |  │         per-token allocation (GPU free list)        │
-       |  └─────────────────────────────────────────────────────┘
-       |
- Forward pass (attention + MLP layers)
-       |
- KV cache written with new key-value pairs
-       |
- Sample output token → stream back to client
+<figure class="diagram">
+<img src="./request-flow.svg" alt="Request flow diagram showing shared steps and two divergence points">
+</figure>
+
+Everything outside the green boxes is shared. Same ZMQ transport, same busy-loop scheduling, same "allocate before forward pass" pattern, same streaming output. The green boxes are where the interesting decisions live.
+
+## Divergence 1: Scheduling Priority
+
+The two frameworks schedule prefill and decode work in opposite order.
+
+vLLM runs a decode-first policy. In its `schedule()` loop, it iterates running requests first — these are the decode requests already generating tokens. Only after all running requests are accounted for does it move to the waiting queue for new prefills, and both draw from the same token budget:
+
+```python
+# vLLM: v1/core/sched/scheduler.py:357
+# First, schedule the RUNNING requests.
+req_index = 0
+while req_index < len(self.running) and token_budget > 0:
+    request = self.running[req_index]
+    ...
+    token_budget -= num_new_tokens
+
+# v1/core/sched/scheduler.py:535
+# Next, schedule the WAITING requests.
+while self.waiting and token_budget > 0:
+    ...
 ```
 
-Everything outside the boxes is shared. Same ZMQ transport, same busy-loop scheduling, same "allocate before forward pass" pattern, same streaming output. The boxes are where the interesting decisions live.
+SGLang runs a prefill-first policy. Its `get_next_batch_to_run()` tries to build a prefill batch first, and returns it immediately if one exists. Decode only runs when there's no prefill work pending:
 
-## Prefix Cache Granularity — Blocks vs. Tokens
+```python
+# SGLang: scheduler.py:1935-1955
+new_batch = self.get_new_batch_prefill()
+
+if new_batch is not None:
+    # Run prefill first if possible
+    ret = new_batch
+else:
+    # Run decode
+    if not self.running_batch.is_empty():
+        self.running_batch = self.update_running_batch(self.running_batch)
+        ret = self.running_batch if not self.running_batch.is_empty() else None
+```
+
+The difference doesn't matter much under light load — if the scheduler has spare capacity, both approaches process everything promptly. But under heavy mixed traffic, the policies diverge in what they protect:
+
+- **Decode-first** (vLLM) protects latency for in-flight requests. If you're already generating tokens for a user, your decode steps won't be delayed by a burst of new arrivals. This goes further than just prioritization — if any running request had to be preempted during scheduling (due to insufficient KV cache blocks), the scheduler skips the waiting queue entirely that step. Under memory pressure, it's not decode-first, it's decode-only. The cost is that new requests may sit in the waiting queue longer before their first token.
+
+- **Prefill-first** (SGLang) optimizes for time-to-first-token on new arrivals. Incoming requests get started quickly. But under sustained load, decode steps for in-flight requests could be delayed, potentially increasing inter-token latency for users already mid-response.
+
+This is a genuine architectural tradeoff, not a bug in either implementation. For a chat application where users are sensitive to how quickly a response starts, prefill-first makes sense. For a throughput-oriented pipeline where you want consistent generation speed for in-flight requests, decode-first is the safer choice.
+
+In practice, with chunked prefill enabled (the standard production configuration), the gap narrows — prefill work is broken into chunks that interleave with decode steps, so neither policy fully starves the other. But under memory pressure or bursty traffic, the scheduling order determines which requests degrade first. 
+
+## Divergence 2: Prefix Cache Granularity — Blocks vs. Tokens
 
 When multiple requests share the same system prompt (which is most production workloads), both frameworks try to avoid recomputing the shared prefix by caching the KV values from the first request and reusing them for subsequent ones. The difference is in how fine-grained that caching is.
 
@@ -112,7 +126,7 @@ SGLang's radix trie matches all 117 (every token but the last, which must be rec
 | vLLM      | 118          | **112**              | 6          |
 | SGLang    | 118          | **117**              | 1          |
 
-vLLM cached exactly `floor(118/16) * 16 = 112` tokens. SGLang cached `118 - 1 = 117`. The formulas match the code exactly.
+vLLM cached exactly `floor(118/16) × 16 = 112` tokens. SGLang cached `118 − 1 = 117`. The formulas match the code exactly.
 
 I also swept across different prompt lengths to check alignment effects:
 
@@ -125,29 +139,27 @@ I also swept across different prompt lengths to check alignment effects:
 | 48            | 66          | 64          | 65            | 2 tokens   |
 | 49            | 67          | 64          | 66            | 3 tokens   |
 
-vLLM's cached values are always exact multiples of 16. SGLang's are always `total - 1`. The waste varies from 1 to 15 tokens depending on alignment — small per request, but it compounds under concurrency. For a 4B model, prefill throughput is roughly 10,000–50,000 tokens/sec depending on batch size. Six wasted tokens per request costs ~0.12–0.6ms. Across 100 concurrent requests sharing the same system prompt, that's 12–60ms of aggregate wasted compute per scheduling cycle. Not catastrophic, but not zero.
+vLLM's cached values are always exact multiples of 16. SGLang's are always total − 1. The waste ranges from 1 to 15 tokens depending on alignment (expected average ~8 for random prompt lengths), and it adds up at batch scale: 100 concurrent requests collectively waste ~800 extra prefill tokens. At high-batch prefill throughput for a 4B model (~50,000 tokens/sec), that's roughly 16ms of extra compute. Not catastrophic, but not zero.
 
-One subtlety I expected to find but didn't: vLLM's `get_computed_blocks()` caps the cache hit at `num_tokens - 1`, which should force recomputing an extra block when the prompt length is an exact multiple of 16. In practice, the chat template overhead makes exact block alignment unlikely, so this edge case didn't surface in my tests.
-
-## The Radix Cache Remembers Everything — Including Output Tokens
+### The Radix Cache Remembers Everything — Including Output Tokens
 
 This is the observation I find most interesting, and it required a failed experiment to understand correctly.
 
-Both frameworks cache KV values for the input prompt. But SGLang's radix trie stores the full token path — input *and* output — for every request. This means in multi-turn conversations, the second turn's prefix match can extend through the prior turn's output tokens, not just the shared system prompt.
+Both frameworks cache KV values for the input prompt. But SGLang's radix trie stores the full token path — input *and* output — for every completed request. This means in multi-turn conversations, the second turn's prefix match can extend through the prior turn's output tokens, not just the shared system prompt.
 
-SGLang inserts into its radix cache after every decode step and again at request completion:
+SGLang inserts into its radix cache at two points: during prefill processing (for the input tokens) and at request completion (for the full sequence including output). The completion path is the one that matters for multi-turn caching:
 
 ```python
-# SGLang: scheduler_output_processor_mixin.py:384
-# Inside process_batch_result_decode(), for every decoding request:
-self.tree_cache.cache_unfinished_req(req)
+# SGLang: radix_cache.py:459
+# cache_finished_req() is called via release_kv_cache() when a request completes.
+# It inserts the full token sequence: input + all generated output.
+token_ids = (req.origin_input_ids + req.output_ids)[:kv_committed_len]
 
-# cache_unfinished_req (radix_cache.py:506-569) calls insert()
-# with the full token sequence so far: input + all output tokens generated.
-# The trie grows incrementally as the request decodes.
+# The trie receives the complete sequence only at completion time —
+# output tokens are NOT inserted incrementally during decode steps.
 ```
 
-A concrete example of how this helps. Turn 1: `[system prompt] + "What is prefix caching?"` → model generates `"Prefix caching is a technique that..."`. After turn 1 completes, the radix trie contains the full path: system prompt, user message, and the entire assistant response. Turn 2: `[system prompt] + "What is prefix caching?" + "Prefix caching is a technique that..." + "Tell me more."` → `match_prefix()` walks the trie and matches everything up to the new user message — the entire first turn including the assistant's output tokens. Turn 2 skips recomputing KV for all of turn 1. Only the new user message needs a forward pass.
+A concrete example of how this helps. `Turn 1: [system prompt] + "What is prefix caching?"` → model generates `"Prefix caching is a technique that..."`. When turn 1 completes, `cache_finished_req` inserts the full path into the radix trie: system prompt, user message, and the entire assistant response. `Turn 2: [system prompt] + "What is prefix caching?" + "Prefix caching is a technique that..." + "Tell me more."` → `match_prefix` walks the trie and matches everything up to the new user message — the entire first turn including the assistant's output tokens. Turn 2 skips recomputing KV for all of turn 1. Only the new user message needs a forward pass.
 
 vLLM can also cache output tokens through its block-hash mechanism — completed blocks are hashed regardless of whether they contain input or output tokens:
 
@@ -160,9 +172,9 @@ hash_function((parent_block_hash, curr_block_token_ids_tuple, extra_keys))
 # single_type_kv_cache_manager.py:249 — cache_full_blocks()
 ```
 
-So vLLM's multi-turn caching works too, but at block granularity with the same alignment constraints — you lose up to 15 tokens at the boundary between turn 1's output and turn 2's new input.
+So vLLM's multi-turn caching works too, but at block granularity with the same alignment constraints. The block hash chain is continuous — a full block spanning the boundary between turn 1's output and turn 2's input gets hashed and cached like any other block. The only waste is the partial block at the very end of the matched prefix, same as the single-turn case.
 
-I initially tested this wrong. My first experiment sent two independent requests with the same input prompt and expected the second request to benefit from the first's output tokens. It didn't — because `match_prefix()` walks the trie against the *new request's* token sequence, and request B's input didn't include request A's output. The cached tokens topped out at 117 (prompt only), same as the single-turn test. The lesson: output token sharing requires a future request whose input contains the prior output — the typical multi-turn conversation pattern.
+I initially tested this wrong. My first experiment sent two independent requests with the same input prompt and expected the second request to benefit from the first's output tokens. It didn't — because `match_prefix` walks the trie against the *new request's* token sequence, and request B's input didn't include request A's output. The cached tokens topped out at 117 (prompt only), same as the single-turn test. The lesson: output token sharing requires a future request whose input contains the prior output — the typical multi-turn conversation pattern.
 
 So I ran the correct test. Two-turn conversation: turn 1 generates a 64-token response about Paris, then turn 2 includes that response as history and asks a follow-up question.
 
@@ -174,26 +186,36 @@ So I ran the correct test. Two-turn conversation: turn 1 generates a 64-token re
 | **Turn-2 cached (cold)** | **176** | **184** |
 | Output tokens shared | **56 of 64** | **64 of 64** |
 
-SGLang cached all 64 output tokens from turn 1: `184 = 120 (turn-1 prompt) + 64 (turn-1 output)`. The radix trie retained the full sequence and `match_prefix()` matched it token by token. vLLM cached 56 of 64 output tokens: `176 = floor(184/16) * 16`. The remaining 8 output tokens sit in a partial block — the same block-alignment constraint, now applied to output tokens.
+Turn 2's 198 tokens break down as: 120 (original system prompt + turn-1 user message) + 64 (turn-1 assistant output) + 14 (turn-2 user message with chat template markup). SGLang cached 184 of those — everything except the 14-token new user message, minus 1 for the last-token recomputation: `184 = 120 + 64`. The radix trie retained the full completed sequence and `match_prefix` matched it token by token. vLLM cached 176: `floor(184/16) × 16 = 176`. The remaining 8 tokens of the matched prefix sit in a partial block at the tail.
 
-In this single two-turn exchange, vLLM wastes 6 tokens on the prompt prefix + 8 tokens at the output block boundary = 14 tokens total. SGLang wastes 0 (aside from the mandatory last-token recompute).
+Since the block hash chain is continuous across turn boundaries, the only waste in vLLM is this single partial block at the end of the matched prefix — an average of ~8 tokens regardless of how many turns the conversation has. Multi-turn conversations don't compound the alignment loss at every turn boundary the way I initially expected; there's just one tail.
 
-Multi-turn conversations are the dominant production workload for chat applications. Each turn adds the full prior conversation as context. A 10-turn conversation where each assistant response is 200 tokens means turn 10's input contains ~2000 tokens of prior output. The block-alignment waste compounds at every turn boundary — with random alignment, that's roughly 7.5 tokens lost per boundary × 10 turns ≈ 75 tokens of cumulative waste in vLLM that SGLang avoids entirely.
+### Why Blocks?
 
-### A Note on Scheduling Order
+The numbers above might suggest SGLang's token-granular approach is strictly superior. It isn't — vLLM is making a deliberate trade, and the primary constraint is the GPU, not the data structure.
 
-One more divergence worth mentioning briefly. The two frameworks schedule prefill and decode work in opposite order: vLLM processes decode requests first, then admits new prefill requests from whatever token budget remains. SGLang checks for a prefill batch first and only falls back to decode when there's no prefill work pending. In practice, with chunked prefill enabled (the production configuration), this ordering difference is unlikely to dominate — but it might show up in mixed-traffic experiments.
+Attention kernels (FlashAttention, FlashInfer) process KV cache in contiguous fixed-size blocks. vLLM's `allocate_slots()` requires `num_computed_tokens` to be block-size aligned — you can't resume computation from the middle of a block because the kernel doesn't support it. The block size is the unit of GPU memory management, and fixed-size blocks enable efficient paged allocation without fragmentation over long-running sessions.
 
-## What I Want to Test Next
+The hash table on top is a secondary benefit: O(1) lookup per block, and a manageable number of entries (a 100K-token cache with block size 16 is ~6,250 hashes). SGLang's radix trie uses path compression — edges store sequences of tokens, and nodes only split at branching points — so the "millions of nodes" concern is less severe than it might seem. But trie operations (insertion, eviction, node splitting) are still more complex under concurrent access than flat hash lookups. It's worth noting that SGLang also supports `page_size > 1`, which would make its caching block-granular like vLLM's — the token-level default is a choice, not an inherent limitation of the architecture.
 
-Reading the code gave me two concrete questions I want to answer with experiments.
+The block-alignment tax — an average of ~8 tokens of wasted cache per request — is the price for this GPU-friendly simplicity.
 
-**Does block alignment actually show up in TTFT?** If I sweep system prompt lengths across values that are and aren't multiples of 16 — say, 12, 16, 28, 32, 44, 48 tokens — does vLLM's TTFT disadvantage appear specifically at misaligned lengths? If so, how large is the effect? And does setting `block_size=1` in vLLM eliminate it?
+### Is This Difference Noise?
 
-**Does radix cache depth matter for multi-turn conversations?** In a 10-turn conversation, does SGLang's token-granular radix cache produce measurably lower TTFT on later turns compared to vLLM's block-aligned caching? The savings should compound with conversation depth — each turn boundary is another potential alignment loss for vLLM. And for structured output workloads where multiple requests share conversation history, does the deeper cache hit translate to throughput gains?
+Putting the numbers in perspective: ~8 tokens of cache waste per request, regardless of conversation length, against prompts that grow to thousands of tokens. At batch scale, the extra prefill compute from block alignment is measured in single-digit milliseconds. For most production deployments, this is noise — dominated by network latency, model forward pass time, and queuing delays.
 
-And underneath both of these, a broader question: do these architectural differences actually matter for real workloads, or have both frameworks optimized the common case so thoroughly that the divergence points are noise?
+The prefix cache divergence is a real architectural difference, but it's not the difference that will determine which framework you should use. The scheduling policy — what happens when the system is under pressure — is far more likely to matter.
 
-I suspect the answer is closer to "noise" than most people expect. But I'd rather measure than guess. That's what Part 1b is for.
+## What to Test Next
 
-*All smoke trace scripts and raw data are in the [repo](https://github.com/marcuslau0903/vllm-sglang-study). Next: Part 1b — running the experiments.*
+The scheduling divergence — decode-first vs prefill-first — is where I expect the real performance difference to emerge, and it requires experiments the code can't answer.
+
+**Memory pressure.** What happens when both frameworks are operating near KV cache capacity? With limited memory headroom, the scheduling policy determines which requests get preempted. Does vLLM's decode-first policy keep in-flight requests alive at the cost of rejecting new ones? Does SGLang's prefill-first policy admit too many new requests, forcing eviction of in-progress work? The recovery cost is more similar than I initially expected: vLLM resets `num_computed_tokens` to 0 on preemption but preserves the request's block hashes, so `get_computed_blocks` can recover cached blocks from the prefix cache when the request is rescheduled. SGLang's retracted requests call `release_kv_cache` with `is_insert=False` — output tokens from decode are lost, but prefill tokens already cached via `cache_unfinished_req` during the initial prefill step survive in the radix trie. Both frameworks lose decode-phase work on preemption; the question is how much of the prefill work each recovers in practice.
+
+**Bursty traffic.** A sustained burst of new requests on top of a steady decode workload. How does each framework's TTFT and inter-token latency respond? The scheduling order should determine which metric degrades first — vLLM should protect inter-token latency while SGLang should protect TTFT.
+
+**Throughput at saturation.** At 80%, 90%, and 100% of capacity — where do the latency distributions diverge? The request flow is identical when the system is comfortable. The differences should only manifest when something has to give.
+
+The idea is to run a simulation of a production workload and measure the performance of each framework under different conditions, and then compare the results to see which framework performs better under different conditions.
+
+
