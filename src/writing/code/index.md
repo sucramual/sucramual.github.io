@@ -81,7 +81,7 @@ The difference doesn't matter much under light load — if the scheduler has spa
 
 This is a genuine architectural tradeoff, not a bug in either implementation. For a chat application where users are sensitive to how quickly a response starts, prefill-first makes sense. For a throughput-oriented pipeline where you want consistent generation speed for in-flight requests, decode-first is the safer choice.
 
-In practice, with chunked prefill enabled (the standard production configuration), the gap narrows — prefill work is broken into chunks that interleave with decode steps, so neither policy fully starves the other. But under memory pressure or bursty traffic, the scheduling order determines which requests degrade first. 
+In practice, with chunked prefill enabled (the standard production configuration), the gap narrows — prefill work is broken into chunks that interleave with decode steps, so neither policy fully starves the other. But under memory pressure or bursty traffic, the scheduling order determines which requests degrade first.
 
 ## Divergence 2: Prefix Cache Granularity — Blocks vs. Tokens
 
