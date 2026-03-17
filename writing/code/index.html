@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inside the Serving Loop: How vLLM and SGLang Actually Handle Your Requests - Marcus Lau</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="/assets/images/logo.png?v=2" />
+    <link rel="apple-touch-icon" href="/assets/images/logo.png?v=2" />
+</head>
+<body class="bg-background text-text min-h-screen">
+
+    <!-- Fixed TOC Sidebar — only on post pages, only on wide screens (shown via JS) -->
+    <aside id="toc-sidebar" style="display:none; position:fixed; left:max(16px, calc(50% - 640px)); top:100px; width:200px; font-size:0.875rem;">
+        <h3 style="font-weight:700; margin:0 0 16px 0; font-size:1rem; font-family:inherit;">Contents</h3>
+        <nav id="toc-list" style="display:flex; flex-direction:column; gap:10px;">
+            <!-- TOC links injected by JS -->
+        </nav>
+    </aside>
+
+    <div class="max-w-2xl mx-auto px-4 py-8">
+        <header class="mb-12">
+            <nav class="flex justify-between items-center mb-16">
+                <a href="/" class="text-xl font-serif hover:text-link-hover transition-colors">Marcus Lau</a>
+                <div class="space-x-6">
+                    <a href="/" class="nav-link">About</a>
+                    <a href="/projects" class="nav-link">Projects</a>
+                    <a href="/writing" class="nav-link">Writing</a>
+                </div>
+            </nav>
+        </header>
+
+        <main class="prose">
+            <h1>Inside the Serving Loop: How vLLM and SGLang Actually Handle Your Requests</h1>
+<p>In my <a href="/writing/inference/">previous post</a>, I benchmarked vLLM and SGLang from the outside — measuring speed and accuracy on structured extraction tasks. The numbers were interesting, but they raised a harder question: <em>why</em> do these frameworks perform the way they do?</p>
+<p>To find out, I did what any self-respecting engineer would do: I read the code. Both codebases, end-to-end, tracing a single request from API entry to first token output.</p>
+<p>What surprised me most wasn't the differences — it was how similar the two frameworks are. They share the same high-level architecture, the same core optimizations, and in many places, nearly identical design decisions. The community discourse sometimes treats them as fundamentally different approaches to inference serving. They're not. They're two implementations of the same ideas, with a few divergence points that <em>might</em> matter for performance.</p>
+<h2>The Path of a Request</h2>
+<p>Both frameworks follow the same basic flow. A request arrives over HTTP, gets tokenized, crosses a process boundary via ZMQ to a scheduler, the scheduler decides what to compute and allocates KV cache memory, a GPU worker runs the forward pass, and the first token streams back.</p>
+<p>Here's what that looks like, with the two divergence points marked:</p>
+<figure class="diagram">
+<img src="./request-flow.svg" alt="Request flow diagram showing shared steps and two divergence points">
+</figure>
+<p>Everything outside the green boxes is shared. Same ZMQ transport, same busy-loop scheduling, same &quot;allocate before forward pass&quot; pattern, same streaming output. The green boxes are where the interesting decisions live.</p>
+<h2>Divergence 1: Scheduling Priority</h2>
+<p>The two frameworks schedule prefill and decode work in opposite order.</p>
+<p>vLLM runs a decode-first policy. In its <code>schedule()</code> loop, it iterates running requests first — these are the decode requests already generating tokens. Only after all running requests are accounted for does it move to the waiting queue for new prefills, and both draw from the same token budget:</p>
+<pre class="language-python"><code class="language-python"><span class="token comment"># vLLM: v1/core/sched/scheduler.py:357</span>
+<span class="token comment"># First, schedule the RUNNING requests.</span>
+req_index <span class="token operator">=</span> <span class="token number">0</span>
+<span class="token keyword">while</span> req_index <span class="token operator">&lt;</span> <span class="token builtin">len</span><span class="token punctuation">(</span>self<span class="token punctuation">.</span>running<span class="token punctuation">)</span> <span class="token keyword">and</span> token_budget <span class="token operator">></span> <span class="token number">0</span><span class="token punctuation">:</span>
+    request <span class="token operator">=</span> self<span class="token punctuation">.</span>running<span class="token punctuation">[</span>req_index<span class="token punctuation">]</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    token_budget <span class="token operator">-=</span> num_new_tokens
+
+<span class="token comment"># v1/core/sched/scheduler.py:535</span>
+<span class="token comment"># Next, schedule the WAITING requests.</span>
+<span class="token keyword">while</span> self<span class="token punctuation">.</span>waiting <span class="token keyword">and</span> token_budget <span class="token operator">></span> <span class="token number">0</span><span class="token punctuation">:</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span></code></pre>
+<p>SGLang runs a prefill-first policy. Its <code>get_next_batch_to_run()</code> tries to build a prefill batch first, and returns it immediately if one exists. Decode only runs when there's no prefill work pending:</p>
+<pre class="language-python"><code class="language-python"><span class="token comment"># SGLang: scheduler.py:1935-1955</span>
+new_batch <span class="token operator">=</span> self<span class="token punctuation">.</span>get_new_batch_prefill<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+<span class="token keyword">if</span> new_batch <span class="token keyword">is</span> <span class="token keyword">not</span> <span class="token boolean">None</span><span class="token punctuation">:</span>
+    <span class="token comment"># Run prefill first if possible</span>
+    ret <span class="token operator">=</span> new_batch
+<span class="token keyword">else</span><span class="token punctuation">:</span>
+    <span class="token comment"># Run decode</span>
+    <span class="token keyword">if</span> <span class="token keyword">not</span> self<span class="token punctuation">.</span>running_batch<span class="token punctuation">.</span>is_empty<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+        self<span class="token punctuation">.</span>running_batch <span class="token operator">=</span> self<span class="token punctuation">.</span>update_running_batch<span class="token punctuation">(</span>self<span class="token punctuation">.</span>running_batch<span class="token punctuation">)</span>
+        ret <span class="token operator">=</span> self<span class="token punctuation">.</span>running_batch <span class="token keyword">if</span> <span class="token keyword">not</span> self<span class="token punctuation">.</span>running_batch<span class="token punctuation">.</span>is_empty<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">else</span> <span class="token boolean">None</span></code></pre>
+<p>The difference doesn't matter much under light load — if the scheduler has spare capacity, both approaches process everything promptly. But under heavy mixed traffic, the policies diverge in what they protect:</p>
+<ul>
+<li>
+<p><strong>Decode-first</strong> (vLLM) protects latency for in-flight requests. If you're already generating tokens for a user, your decode steps won't be delayed by a burst of new arrivals. This goes further than just prioritization — if any running request had to be preempted during scheduling (due to insufficient KV cache blocks), the scheduler skips the waiting queue entirely that step. Under memory pressure, it's not decode-first, it's decode-only. The cost is that new requests may sit in the waiting queue longer before their first token.</p>
+</li>
+<li>
+<p><strong>Prefill-first</strong> (SGLang) optimizes for time-to-first-token on new arrivals. Incoming requests get started quickly. But under sustained load, decode steps for in-flight requests could be delayed, potentially increasing inter-token latency for users already mid-response.</p>
+</li>
+</ul>
+<p>This is a genuine architectural tradeoff, not a bug in either implementation. For a chat application where users are sensitive to how quickly a response starts, prefill-first makes sense. For a throughput-oriented pipeline where you want consistent generation speed for in-flight requests, decode-first is the safer choice.</p>
+<p>In practice, with chunked prefill enabled (the standard production configuration), the gap narrows — prefill work is broken into chunks that interleave with decode steps, so neither policy fully starves the other. But under memory pressure or bursty traffic, the scheduling order determines which requests degrade first.</p>
+<h2>Divergence 2: Prefix Cache Granularity — Blocks vs. Tokens</h2>
+<p>When multiple requests share the same system prompt (which is most production workloads), both frameworks try to avoid recomputing the shared prefix by caching the KV values from the first request and reusing them for subsequent ones. The difference is in how fine-grained that caching is.</p>
+<p>vLLM caches at block granularity. The default block size is 16 tokens. Only full blocks — blocks completely filled with computed tokens — are hashed and eligible for caching. The rule is explicit in the code:</p>
+<pre class="language-python"><code class="language-python"><span class="token comment"># vLLM: kv_cache_utils.py:574-576</span>
+<span class="token comment"># "We only hash full blocks"</span>
+<span class="token comment"># end_token_idx = start_token_idx + block_size must be &lt;= num_tokens</span>
+
+<span class="token comment"># The block count is computed via integer division:</span>
+<span class="token comment"># single_type_kv_cache_manager.py:249</span>
+num_full_blocks <span class="token operator">=</span> num_tokens <span class="token operator">//</span> self<span class="token punctuation">.</span>block_size</code></pre>
+<p>SGLang caches at token granularity. With the default <code>page_size=1</code>, the radix trie matches token by token:</p>
+<pre class="language-python"><code class="language-python"><span class="token comment"># SGLang: server_args.py:2198-2200</span>
+<span class="token keyword">def</span> <span class="token function">_handle_page_size</span><span class="token punctuation">(</span>self<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">if</span> self<span class="token punctuation">.</span>page_size <span class="token keyword">is</span> <span class="token boolean">None</span><span class="token punctuation">:</span>
+        self<span class="token punctuation">.</span>page_size <span class="token operator">=</span> <span class="token number">1</span>
+
+<span class="token comment"># radix_cache.py:191-198 — _key_match_page_size1</span>
+<span class="token comment"># Matches individual tokens against the trie, one at a time.</span>
+<span class="token comment"># Every token in a shared prefix that exists in the tree is a hit.</span></code></pre>
+<p>I sent the same 100-token system prompt twice and measured cached tokens on the second request. The Qwen3-VL chat template adds ~18 tokens of markup, so the actual prompt was 118 tokens. Here's what vLLM does with that, block by block:</p>
+<ul>
+<li>Block 0: tokens 0–15 → hashed as <code>hash(NONE_HASH, (tok0...tok15))</code> → cached</li>
+<li>Block 1: tokens 16–31 → hashed as <code>hash(block0_hash, (tok16...tok31))</code> → cached</li>
+<li>...through Block 6: tokens 96–111 → cached</li>
+<li>Tokens 112–117 → partial block. <code>num_full_blocks = 118 // 16 = 7</code>, so only 112 tokens enter the cache.</li>
+</ul>
+<p>SGLang's radix trie matches all 117 (every token but the last, which must be recomputed for logit generation). The results:</p>
+<table>
+<thead>
+<tr>
+<th>Framework</th>
+<th>Prompt Tokens</th>
+<th>Cached (2nd request)</th>
+<th>Recomputed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vLLM</td>
+<td>118</td>
+<td><strong>112</strong></td>
+<td>6</td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>118</td>
+<td><strong>117</strong></td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM cached exactly <code>floor(118/16) × 16 = 112</code> tokens. SGLang cached <code>118 − 1 = 117</code>. The formulas match the code exactly.</p>
+<p>I also swept across different prompt lengths to check alignment effects:</p>
+<table>
+<thead>
+<tr>
+<th>Content Tokens</th>
+<th>Total Prompt</th>
+<th>vLLM Cached</th>
+<th>SGLang Cached</th>
+<th>vLLM Waste</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16</td>
+<td>34</td>
+<td>32</td>
+<td>33</td>
+<td>2 tokens</td>
+</tr>
+<tr>
+<td>17</td>
+<td>35</td>
+<td>32</td>
+<td>34</td>
+<td>3 tokens</td>
+</tr>
+<tr>
+<td>31</td>
+<td>49</td>
+<td>48</td>
+<td>48</td>
+<td>1 token</td>
+</tr>
+<tr>
+<td>32</td>
+<td>50</td>
+<td>48</td>
+<td>49</td>
+<td>2 tokens</td>
+</tr>
+<tr>
+<td>48</td>
+<td>66</td>
+<td>64</td>
+<td>65</td>
+<td>2 tokens</td>
+</tr>
+<tr>
+<td>49</td>
+<td>67</td>
+<td>64</td>
+<td>66</td>
+<td>3 tokens</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM's cached values are always exact multiples of 16. SGLang's are always total − 1. The waste ranges from 1 to 15 tokens depending on alignment (expected average ~8 for random prompt lengths), and it adds up at batch scale: 100 concurrent requests collectively waste ~800 extra prefill tokens. At high-batch prefill throughput for a 4B model (~50,000 tokens/sec), that's roughly 16ms of extra compute. Not catastrophic, but not zero.</p>
+<h3>The Radix Cache Remembers Everything — Including Output Tokens</h3>
+<p>This is the observation I find most interesting, and it required a failed experiment to understand correctly.</p>
+<p>Both frameworks cache KV values for the input prompt. But SGLang's radix trie stores the full token path — input <em>and</em> output — for every completed request. This means in multi-turn conversations, the second turn's prefix match can extend through the prior turn's output tokens, not just the shared system prompt.</p>
+<p>SGLang inserts into its radix cache at two points: during prefill processing (for the input tokens) and at request completion (for the full sequence including output). The completion path is the one that matters for multi-turn caching:</p>
+<pre class="language-python"><code class="language-python"><span class="token comment"># SGLang: radix_cache.py:459</span>
+<span class="token comment"># cache_finished_req() is called via release_kv_cache() when a request completes.</span>
+<span class="token comment"># It inserts the full token sequence: input + all generated output.</span>
+token_ids <span class="token operator">=</span> <span class="token punctuation">(</span>req<span class="token punctuation">.</span>origin_input_ids <span class="token operator">+</span> req<span class="token punctuation">.</span>output_ids<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token punctuation">:</span>kv_committed_len<span class="token punctuation">]</span>
+
+<span class="token comment"># The trie receives the complete sequence only at completion time —</span>
+<span class="token comment"># output tokens are NOT inserted incrementally during decode steps.</span></code></pre>
+<p>A concrete example of how this helps. <code>Turn 1: [system prompt] + &quot;What is prefix caching?&quot;</code> → model generates <code>&quot;Prefix caching is a technique that...&quot;</code>. When turn 1 completes, <code>cache_finished_req</code> inserts the full path into the radix trie: system prompt, user message, and the entire assistant response. <code>Turn 2: [system prompt] + &quot;What is prefix caching?&quot; + &quot;Prefix caching is a technique that...&quot; + &quot;Tell me more.&quot;</code> → <code>match_prefix</code> walks the trie and matches everything up to the new user message — the entire first turn including the assistant's output tokens. Turn 2 skips recomputing KV for all of turn 1. Only the new user message needs a forward pass.</p>
+<p>vLLM can also cache output tokens through its block-hash mechanism — completed blocks are hashed regardless of whether they contain input or output tokens:</p>
+<pre class="language-python"><code class="language-python"><span class="token comment"># vLLM: kv_cache_utils.py:558</span>
+<span class="token comment"># Block hash is a chained hash:</span>
+hash_function<span class="token punctuation">(</span><span class="token punctuation">(</span>parent_block_hash<span class="token punctuation">,</span> curr_block_token_ids_tuple<span class="token punctuation">,</span> extra_keys<span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+<span class="token comment"># Blocks are hashed when full (16 tokens), in the NEXT scheduling step.</span>
+<span class="token comment"># single_type_kv_cache_manager.py:249 — cache_full_blocks()</span></code></pre>
+<p>So vLLM's multi-turn caching works too, but at block granularity with the same alignment constraints. The block hash chain is continuous — a full block spanning the boundary between turn 1's output and turn 2's input gets hashed and cached like any other block. The only waste is the partial block at the very end of the matched prefix, same as the single-turn case.</p>
+<p>I initially tested this wrong. My first experiment sent two independent requests with the same input prompt and expected the second request to benefit from the first's output tokens. It didn't — because <code>match_prefix</code> walks the trie against the <em>new request's</em> token sequence, and request B's input didn't include request A's output. The cached tokens topped out at 117 (prompt only), same as the single-turn test. The lesson: output token sharing requires a future request whose input contains the prior output — the typical multi-turn conversation pattern.</p>
+<p>So I ran the correct test. Two-turn conversation: turn 1 generates a 64-token response about Paris, then turn 2 includes that response as history and asks a follow-up question.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>vLLM</th>
+<th>SGLang</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Turn-1 prompt tokens</td>
+<td>120</td>
+<td>120</td>
+</tr>
+<tr>
+<td>Turn-1 output tokens</td>
+<td>64</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Turn-2 total prompt tokens</td>
+<td>198</td>
+<td>198</td>
+</tr>
+<tr>
+<td><strong>Turn-2 cached (cold)</strong></td>
+<td><strong>176</strong></td>
+<td><strong>184</strong></td>
+</tr>
+<tr>
+<td>Output tokens shared</td>
+<td><strong>56 of 64</strong></td>
+<td><strong>64 of 64</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Turn 2's 198 tokens break down as: 120 (original system prompt + turn-1 user message) + 64 (turn-1 assistant output) + 14 (turn-2 user message with chat template markup). SGLang cached 184 of those — everything except the 14-token new user message, minus 1 for the last-token recomputation: <code>184 = 120 + 64</code>. The radix trie retained the full completed sequence and <code>match_prefix</code> matched it token by token. vLLM cached 176: <code>floor(184/16) × 16 = 176</code>. The remaining 8 tokens of the matched prefix sit in a partial block at the tail.</p>
+<p>Since the block hash chain is continuous across turn boundaries, the only waste in vLLM is this single partial block at the end of the matched prefix — an average of ~8 tokens regardless of how many turns the conversation has. Multi-turn conversations don't compound the alignment loss at every turn boundary the way I initially expected; there's just one tail.</p>
+<h3>Why Blocks?</h3>
+<p>The numbers above might suggest SGLang's token-granular approach is strictly superior. It isn't — vLLM is making a deliberate trade, and the primary constraint is the GPU, not the data structure.</p>
+<p>Attention kernels (FlashAttention, FlashInfer) process KV cache in contiguous fixed-size blocks. vLLM's <code>allocate_slots()</code> requires <code>num_computed_tokens</code> to be block-size aligned — you can't resume computation from the middle of a block because the kernel doesn't support it. The block size is the unit of GPU memory management, and fixed-size blocks enable efficient paged allocation without fragmentation over long-running sessions.</p>
+<p>The hash table on top is a secondary benefit: O(1) lookup per block, and a manageable number of entries (a 100K-token cache with block size 16 is ~6,250 hashes). SGLang's radix trie uses path compression — edges store sequences of tokens, and nodes only split at branching points — so the &quot;millions of nodes&quot; concern is less severe than it might seem. But trie operations (insertion, eviction, node splitting) are still more complex under concurrent access than flat hash lookups. It's worth noting that SGLang also supports <code>page_size &gt; 1</code>, which would make its caching block-granular like vLLM's — the token-level default is a choice, not an inherent limitation of the architecture.</p>
+<p>The block-alignment tax — an average of ~8 tokens of wasted cache per request — is the price for this GPU-friendly simplicity.</p>
+<h3>Is This Difference Noise?</h3>
+<p>Putting the numbers in perspective: ~8 tokens of cache waste per request, regardless of conversation length, against prompts that grow to thousands of tokens. At batch scale, the extra prefill compute from block alignment is measured in single-digit milliseconds. For most production deployments, this is noise — dominated by network latency, model forward pass time, and queuing delays.</p>
+<p>The prefix cache divergence is a real architectural difference, but it's not the difference that will determine which framework you should use. The scheduling policy — what happens when the system is under pressure — is far more likely to matter.</p>
+<h2>What to Test Next</h2>
+<p>The scheduling divergence — decode-first vs prefill-first — is where I expect the real performance difference to emerge, and it requires experiments the code can't answer.</p>
+<p><strong>Memory pressure.</strong> What happens when both frameworks are operating near KV cache capacity? With limited memory headroom, the scheduling policy determines which requests get preempted. Does vLLM's decode-first policy keep in-flight requests alive at the cost of rejecting new ones? Does SGLang's prefill-first policy admit too many new requests, forcing eviction of in-progress work? The recovery cost is more similar than I initially expected: vLLM resets <code>num_computed_tokens</code> to 0 on preemption but preserves the request's block hashes, so <code>get_computed_blocks</code> can recover cached blocks from the prefix cache when the request is rescheduled. SGLang's retracted requests call <code>release_kv_cache</code> with <code>is_insert=False</code> — output tokens from decode are lost, but prefill tokens already cached via <code>cache_unfinished_req</code> during the initial prefill step survive in the radix trie. Both frameworks lose decode-phase work on preemption; the question is how much of the prefill work each recovers in practice.</p>
+<p><strong>Bursty traffic.</strong> A sustained burst of new requests on top of a steady decode workload. How does each framework's TTFT and inter-token latency respond? The scheduling order should determine which metric degrades first — vLLM should protect inter-token latency while SGLang should protect TTFT.</p>
+<p><strong>Throughput at saturation.</strong> At 80%, 90%, and 100% of capacity — where do the latency distributions diverge? The request flow is identical when the system is comfortable. The differences should only manifest when something has to give.</p>
+<p>The idea is to run a simulation of a production workload and measure the performance of each framework under different conditions, and then compare the results to see which framework performs better under different conditions.</p>
+
+
+            
+            <section style="margin-top:48px; padding-top:24px; border-top:1px solid #e5e7eb;">
+                <h2 style="font-size:1.1em; margin-top:0; margin-bottom:16px;">References</h2>
+                <ol style="padding-left:24px; margin:0; list-style:decimal;">
+                    
+                    <li id="ref-1" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        Kwon, W., Li, Z., Zhuang, S. et al.. 
+                        
+                            <a href="https://arxiv.org/pdf/2309.06180" class="text-link hover:text-link-hover">Efficient Memory Management for Large Language Model Serving with PagedAttention</a>
+                        
+                        . <em>SOSP 2023</em>
+                         (2023).
+                    </li>
+                    
+                    <li id="ref-2" style="margin-bottom:12px; font-size:0.9em; line-height:1.5;">
+                        Zheng, L., Yin, L., Xie, Z. et al.. 
+                        
+                            <a href="https://arxiv.org/pdf/2312.07104" class="text-link hover:text-link-hover">SGLang: Efficient Execution of Structured Language Model Programs</a>
+                        
+                        
+                         (2024).
+                    </li>
+                    
+                </ol>
+            </section>
+            
+        </main>
+
+        <footer class="mt-16 pt-8 border-t border-gray-200 text-sm text-gray-600">
+            <p>&copy; 2026 Marcus Lau</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const articleContent = document.querySelector('main.prose');
+            const sidebar = document.getElementById('toc-sidebar');
+            const tocList = document.getElementById('toc-list');
+            if (!articleContent) return;
+
+            // --- Date + Read Time ---
+            const h1 = articleContent.querySelector('h1');
+            if (h1) {
+                // Word count → read time
+                const words = articleContent.innerText.trim().split(/\s+/).length;
+                const mins = Math.max(1, Math.round(words / 200));
+
+                const meta = document.createElement('p');
+                meta.style.cssText = 'margin:0px 0 50px 0; font-size:1.0rem; color:#888; font-family:inherit;';
+                meta.innerHTML = `Mar 07, 2026 &middot; ${mins} min read`;
+                h1.insertAdjacentElement('afterend', meta);
+            }
+
+            // Only show TOC on wide screens (≥1300px)
+            if (!sidebar || !tocList) return;
+            function checkWidth() {
+                sidebar.style.display = window.innerWidth >= 1300 ? 'block' : 'none';
+            }
+
+            // Build TOC from h2 and h3 headings
+            const headings = articleContent.querySelectorAll('h2, h3');
+            if (headings.length === 0) return;
+
+            headings.forEach(heading => {
+                if (!heading.id) {
+                    heading.id = heading.textContent.trim().toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/(^-|-$)/g, '');
+                }
+
+                const link = document.createElement('a');
+                link.href = '#' + heading.id;
+                link.textContent = heading.textContent;
+                link.className = 'toc-link';
+                Object.assign(link.style, {
+                    color: '#b0a99f',
+                    textDecoration: 'none',
+                    lineHeight: '1.4',
+                    transition: 'color 0.15s ease'
+                });
+                if (heading.tagName === 'H3') {
+                    link.style.paddingLeft = '12px';
+                    link.style.fontSize = '0.8rem';
+                }
+                link.addEventListener('mouseenter', () => {
+                    if (!link.classList.contains('active')) link.style.color = '#000';
+                });
+                link.addEventListener('mouseleave', () => {
+                    if (!link.classList.contains('active')) link.style.color = '#b0a99f';
+                });
+                tocList.appendChild(link);
+            });
+
+            // Scroll-spy: highlight the active section
+            const tocLinks = document.querySelectorAll('.toc-link');
+
+            function setActiveLink() {
+                let currentActive = null;
+                headings.forEach(section => {
+                    if (window.scrollY + 120 >= section.offsetTop) {
+                        currentActive = tocList.querySelector(`a[href="#${section.id}"]`);
+                    }
+                });
+                tocLinks.forEach(link => {
+                    link.classList.remove('active');
+                    link.style.color = '#b0a99f';
+                    link.style.fontWeight = 'normal';
+                });
+                if (currentActive) {
+                    currentActive.classList.add('active');
+                    currentActive.style.color = '#000';
+                    currentActive.style.fontWeight = '700';
+                }
+            }
+
+            // Smooth scroll on click
+            tocLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        window.scrollTo({ top: target.offsetTop - 20, behavior: 'smooth' });
+                        history.pushState(null, null, this.getAttribute('href'));
+                    }
+                });
+            });
+
+            checkWidth();
+            window.addEventListener('resize', checkWidth);
+            setActiveLink();
+            window.addEventListener('scroll', setActiveLink);
+        });
+    </script>
+</body>
+</html>
