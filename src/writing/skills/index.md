@@ -109,4 +109,4 @@ Personally, I think the best part of skill building is that the cost of iteratin
 
 One thing I've noticed is that there's no good way to evaluate or compare skills. When multiple people build skills for the same workflow, there's no metric to tell you which one is better — you just try them. As skills become more central to agentic coding, I think we'll need more structure here: benchmarks, usage analytics, or at minimum a way to A/B test two skills against each other. But that's a problem for another post.
 
-All the skills discussed in this post are available on my GitHub. If there are skills you use a lot and find helpful, I'd love to hear. Also happy to chat about skills and all things AI. Feedback is welcome.
+All the skills discussed in this post are available on GitHub: [pr-skills](https://github.com/sucramual/pr-skills) and [review-plan-skill](https://github.com/sucramual/review-plan-skill). If there are skills you use a lot and find helpful, I'd love to hear. Also happy to chat about skills and all things AI. Feedback is welcome.
