@@ -88,7 +88,7 @@
 <pre><code>Fetch PR context → Find linked ticket → Identify follow-up candidates → Present table to user → Confirm → Create tickets → Comment on PR → Notify reviewers
 </code></pre>
 <p>This saves me from the tedious back-and-forth of copying links between GitHub, the ticket tracker, and chat.</p>
-<h2>/review-plan</h2>
+<h2><a href="https://github.com/sucramual/review-plan-skill">/review-plan</a></h2>
 <p>We all use plan mode before any major code changes, but it's sometimes hard to gauge how good the plan is. Since models tend to display sycophantic behaviour, simply asking it to review its own plan might not be the best idea. <code>/review-plan</code> dispatches subagents with fresh context — the reviewer sees only the plan and the codebase, not the conversation that produced it, so it evaluates the plan on its own merits rather than anchoring on prior decisions. You can assign up to three personas (want Larry Page to review your architecture? go ahead) and use <code>--reviewer codex</code> for cross-model review, where a different model catches blind spots that the original might miss, similar to having a second human reviewer.</p>
 <p>I really enjoy using <code>/review-plan</code> and I would love to hear any feedback regarding the skill!</p>
 <h2>Conclusion</h2>
