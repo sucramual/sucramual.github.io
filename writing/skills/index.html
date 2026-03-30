@@ -35,9 +35,12 @@
 
         <main class="prose">
             <h1>How I Stopped Babysitting My PRs</h1>
-<h2>Motivation</h2>
-<p>I've been using Claude Code extensively for the past few months. Along the way, I've built a set of skills — reusable workflow definitions that teach the agent how to do things my way. Given how fast AI is evolving (R.I.P Sora), I think it'd be interesting to look back in a year at how this usage has changed. So I'm sharing what I've built, why, and what I think is still missing.</p>
-<p>I mostly use Claude Code these days. In Claude Code, you can extend the agent with <strong>skills</strong> — folders containing instructions, scripts, and config files that teach Claude new workflows. If you're new to skills, I recommend this <a href="https://x.com/trq212/status/2033949937936085378">article</a> by the Claude Code team. The short version: you define trigger points, and the model acts on them.</p>
+<h2>The problem</h2>
+<p>Opening a PR should take a minute. In practice, it takes the better part of an afternoon.</p>
+<p>You commit, push, write a description, tag the right reviewers, create the PR — and then you wait. A bot leaves comments. You fix them, push again, wait for the bot to re-run. It finds something new. You fix that, push again. Eventually a human reviewer shows up, leaves a few comments, and the cycle repeats. By the time the PR is merged, there are follow-ups scattered across GitHub comments that you need to manually copy into your ticket tracker. The actual code change took an hour. The overhead around it took three.</p>
+<p>And the worst part is the context switching. Every round of bot comments pulls you out of whatever you moved on to.</p>
+<p>I've been using Claude Code extensively for the past few months. Along the way, I've built a set of skills — reusable workflow definitions that teach the agent how to do things my way — to automate this entire loop. Given how fast AI is evolving (R.I.P Sora), I think it'd be interesting to look back in a year at how this usage has changed. So I'm sharing what I've built, why, and what I think is still missing.</p>
+<p>In Claude Code, you can extend the agent with <strong>skills</strong> — folders containing instructions, scripts, and config files that teach Claude new workflows. If you're new to skills, I recommend this <a href="https://x.com/trq212/status/2033949937936085378">article</a> by the Claude Code team. The short version: you define trigger points, and the model acts on them.</p>
 <h2>Starting point</h2>
 <p>Most teams have some version of a PR skill. The baseline looks something like this:</p>
 <pre><code>Commit → Push → Generate description → Create PR
@@ -84,10 +87,11 @@
 <pre><code>Wait for comments → Collect feedback → Classify (valid/stale/won't-fix) → Fix valid issues → Verify locally → Commit &amp; push → Reply to comments → [repeat for round 2] → Summary table
 </code></pre>
 <h3>/post-merge-followup</h3>
-<p>When a PR is approved and merged, oftentimes there are follow-ups to be addressed in future PRs. In light of that, I created <code>/post-merge-followup</code>, which:</p>
+<p>Here's a pattern I kept repeating: PR gets merged, and buried in the comments are three things that need follow-up tickets. A reviewer suggested a refactor that was out of scope. A bot flagged a performance concern I deferred. I said &quot;will address in a follow-up&quot; somewhere in a thread. A week later, I've forgotten all of them.</p>
+<p><code>/post-merge-followup</code> scans the merged PR for exactly these signals — explicit deferrals (&quot;out of scope&quot;, &quot;follow-up&quot;, &quot;separate PR&quot;), unresolved suggestions, bot recommendations that were acknowledged but not implemented — and turns them into tickets:</p>
 <pre><code>Fetch PR context → Find linked ticket → Identify follow-up candidates → Present table to user → Confirm → Create tickets → Comment on PR → Notify reviewers
 </code></pre>
-<p>This saves me from the tedious back-and-forth of copying links between GitHub, the ticket tracker, and chat.</p>
+<p>It presents the candidates for confirmation before creating anything, because not every deferred comment deserves a ticket. But the ones that do get tracked automatically, linked back to the source PR, and the reviewers who raised them get notified on Slack. No more lost follow-ups.</p>
 <h2><a href="https://github.com/sucramual/review-plan-skill">/review-plan</a></h2>
 <p>We all use plan mode before any major code changes, but it's sometimes hard to gauge how good the plan is. Since models tend to display sycophantic behaviour, simply asking it to review its own plan might not be the best idea. <code>/review-plan</code> dispatches subagents with fresh context — the reviewer sees only the plan and the codebase, not the conversation that produced it, so it evaluates the plan on its own merits rather than anchoring on prior decisions. You can assign up to three personas (want Larry Page to review your architecture? go ahead) and use <code>--reviewer codex</code> for cross-model review, where a different model catches blind spots that the original might miss, similar to having a second human reviewer.</p>
 <p>I really enjoy using <code>/review-plan</code> and I would love to hear any feedback regarding the skill!</p>
