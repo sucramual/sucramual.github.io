@@ -58,6 +58,7 @@ module.exports = function (eleventyConfig) {
     eleventyConfig.addPassthroughCopy("src/assets");
     eleventyConfig.addPassthroughCopy("src/writing/**/*.png");
     eleventyConfig.addPassthroughCopy("src/writing/**/*.jpg");
+    eleventyConfig.addPassthroughCopy("src/writing/**/*.jpeg");
     eleventyConfig.addPassthroughCopy("src/writing/**/*.svg");
 
     return {
