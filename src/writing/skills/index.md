@@ -2,17 +2,23 @@
 layout: layouts/post.njk
 title: "How I Stopped Babysitting My PRs"
 date: 2026-03-29
-description: Building Claude Code skills to automate the mundane parts of the PR lifecycle.
+description: Just let Claude Code do it.
 tags: posts
 ---
 
 # How I Stopped Babysitting My PRs
 
-## Motivation
+## The problem
 
-I've been using Claude Code extensively for the past few months. Along the way, I've built a set of skills — reusable workflow definitions that teach the agent how to do things my way. Given how fast AI is evolving (R.I.P Sora), I think it'd be interesting to look back in a year at how this usage has changed. So I'm sharing what I've built, why, and what I think is still missing.
+Opening a PR should take a minute. In practice, it takes the better part of an afternoon.
 
-I mostly use Claude Code these days. In Claude Code, you can extend the agent with **skills** — folders containing instructions, scripts, and config files that teach Claude new workflows. If you're new to skills, I recommend this [article](https://x.com/trq212/status/2033949937936085378) by the Claude Code team. The short version: you define trigger points, and the model acts on them.
+You commit, push, write a description, tag the right reviewers, create the PR — and then you wait. A bot leaves comments. You fix them, push again, wait for the bot to re-run. It finds something new. You fix that, push again. Eventually a human reviewer shows up, leaves a few comments, and the cycle repeats. By the time the PR is merged, there are follow-ups scattered across GitHub comments that you need to manually copy into your ticket tracker. The actual code change took an hour. The overhead around it took three.
+
+And the worst part is the context switching. Every round of bot comments pulls you out of whatever you moved on to.
+
+I've been using Claude Code extensively for the past few months. Along the way, I've built a set of skills — reusable workflow definitions that teach the agent how to do things my way — to automate this entire loop. Given how fast AI is evolving (R.I.P Sora), I think it'd be interesting to look back in a year at how this usage has changed. So I'm sharing what I've built, why, and what I think is still missing.
+
+In Claude Code, you can extend the agent with **skills** — folders containing instructions, scripts, and config files that teach Claude new workflows. If you're new to skills, I recommend this [article](https://x.com/trq212/status/2033949937936085378) by the Claude Code team. The short version: you define trigger points, and the model acts on them.
 
 ## Starting point
 
@@ -89,13 +95,15 @@ Wait for comments → Collect feedback → Classify (valid/stale/won't-fix) → 
 
 ### /post-merge-followup
 
-When a PR is approved and merged, oftentimes there are follow-ups to be addressed in future PRs. In light of that, I created `/post-merge-followup`, which:
+Here's a pattern I kept repeating: PR gets merged, and buried in the comments are three things that need follow-up tickets. A reviewer suggested a refactor that was out of scope. A bot flagged a performance concern I deferred. I said "will address in a follow-up" somewhere in a thread. A week later, I've forgotten all of them.
+
+`/post-merge-followup` scans the merged PR for exactly these signals — explicit deferrals ("out of scope", "follow-up", "separate PR"), unresolved suggestions, bot recommendations that were acknowledged but not implemented — and turns them into tickets:
 
 ```
 Fetch PR context → Find linked ticket → Identify follow-up candidates → Present table to user → Confirm → Create tickets → Comment on PR → Notify reviewers
 ```
 
-This saves me from the tedious back-and-forth of copying links between GitHub, the ticket tracker, and chat.
+It presents the candidates for confirmation before creating anything, because not every deferred comment deserves a ticket. But the ones that do get tracked automatically, linked back to the source PR, and the reviewers who raised them get notified on Slack. No more lost follow-ups.
 
 ## [/review-plan](https://github.com/sucramual/review-plan-skill)
 
